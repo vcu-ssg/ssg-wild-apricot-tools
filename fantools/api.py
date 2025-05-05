@@ -88,7 +88,7 @@ def get_groups_details( account_id:int ) -> dict:
     """Retrieve the list of groups from the Wild Apricot API."""
     if not account_id:
         raise ValueError("Account ID is required to fetch events.")
-    return api_get(f"accounts/{account_id}/contactgroups")
+    return api_get(f"accounts/{account_id}/membergroups")
 
 def get_event_registration_types(account_id: int, event_id: int) -> dict:
     """Retrieve the list of registrants for a specific event."""
