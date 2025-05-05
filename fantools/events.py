@@ -1,83 +1,151 @@
+
 import click
 import json
 
 from datetime import datetime
+from loguru import logger
 
-from .api import get_events, get_event_registration_types
+from fantools.api import get_events_details, get_event_registrants, get_event_registration_types
+from fantools.utils import list_events_details, list_event_details
 
-@click.group()
-@click.option('--id', 'event_id', type=int, help='Filter by specific event ID')
+
+@click.group(invoke_without_command=True)
+@click.option('--account-id', type=int, default=None, help='Use specific account ID')
+@click.option('--event-id', type=int, help='Filter by specific event ID')
+@click.option('--as-json', is_flag=True, default=False, help='List all events info in JSON format')
 @click.pass_context
-def events(ctx, event_id):
+def events(ctx, account_id, event_id, as_json):
     """Manage Wild Apricot events."""
+
     ctx.ensure_object(dict)
-    ctx.obj['event_id'] = event_id
+    logger.debug(f"Invoked subcommand: {ctx.invoked_subcommand}" )
 
-
-def get_event_display_date(event: dict) -> str:
-    """Return StartDate if StartTimeSpecified, otherwise EndDate if EndTimeSpecified."""
-    if event.get("StartTimeSpecified"):
-        return event.get("StartDate")
-    elif event.get("EndTimeSpecified"):
-        return event.get("EndDate")
+    logger.debug(f"Account ID from CLI: {account_id}")
+    if not account_id:
+        account_id = ctx.obj.get('account_id')
+        logger.debug(f"Account ID from context: {account_id}")
     else:
-        return None
+        ctx.obj["account_id"] = account_id
 
+    if not account_id:
+        logger.error("No account ID provided. Use --account-id to specify an account.")
+        return
 
-@events.command("list")
-@click.option('--year', type=int, help='Filter events by year')
-@click.pass_context
-def list_events(ctx, year):
-    """List Wild Apricot events by date, name, and ID, or show full event details for a given ID."""
-    try:
-        event_list = get_events()
+    logger.debug(f"Event ID from CLI: {event_id}")
+    if not event_id:
         event_id = ctx.obj.get('event_id')
+        logger.debug(f"Event ID from context: {event_id}")
+    else:
+        ctx.obj["event_id"] = event_id
 
-        events = event_list.get("Events", [])
-
-        if event_id:
-            matching = [e for e in events if e.get("Id") == event_id]
-            if matching:
-                click.echo(json.dumps(matching[0], indent=2))
+    if not ctx.invoked_subcommand:
+        events = get_events_details( account_id )
+        if events:
+            if event_id:
+                events = [event for event in events.get("Events", []) if event.get("Id") == event_id]
+                if not events:
+                    click.echo(f"No event found with ID: {event_id}")
+                    return
+                events = {"Events": events}
+            if as_json:
+                click.echo(json.dumps(events, indent=2))
             else:
-                click.echo(f"No event found with ID {event_id}")
+                if event_id:
+                    list_event_details( events )
+                else:
+                    list_events_details( events )
         else:
-            for e in events:
-                name = e.get("Name", "Unnamed Event")
-                eid = e.get("Id", "Unknown ID")
-                date_str = get_event_display_date(e)
+            click.echo("No events found.")
+            return
+    
 
-                if not date_str:
-                    continue  # Skip if no date available
-
-                event_year = datetime.fromisoformat(date_str).year
-
-                if year and event_year != year:
-                    continue  # Skip events not matching the selected year
-
-                click.echo(f"{date_str} | {eid}: {name}")
-
-    except Exception as e:
-        click.echo(f"Error: {e}")
-
-@events.command("regtype")
+@events.command("registrants")
+@click.option('--account-id', type=int, required=False, default=None, help='Account ID to fetch registrants for')
+@click.option('--event-id', type=int, required=False, default=None, help='Event ID to fetch registrants for')
+@click.option('--as-json', is_flag=True, default=False, help='Output registrants in JSON format')
 @click.pass_context
-def list_regtypes(ctx):
-    """List registration types for a specific event."""
-    try:
-        event_id = ctx.obj.get("event_id")
-        if not event_id:
-            raise click.UsageError("Please provide --id to specify the event.")
+def registrants(ctx, account_id, event_id, as_json):
+    """List registrants for a specific event."""
 
-        regtypes = get_event_registration_types(event_id)
-        if not regtypes:
-            click.echo("No registration types found.")
+    logger.debug(f"Account ID from CLI: {account_id}")
+    if not account_id:
+        account_id = ctx.obj.get('account_id')
+        logger.debug(f"Account ID from context: {account_id}")
+
+    if not account_id:
+        logger.error("No account ID provided. Use --account-id to specify an account.")
+        return
+
+    logger.debug(f"Event ID from CLI: {event_id}")
+    if not event_id:
+        event_id = ctx.obj.get('event_id')
+        logger.debug(f"Event ID from context: {event_id}")
+
+    if not event_id:
+        logger.error("No event_id provided. Use --event-id to specify an event.")
+        return
+
+    try:
+        registrants = get_event_registrants(account_id, event_id)
+        logger.trace( json.dumps(registrants,indent=2))
+
+        if not registrants:
+            click.echo(f"No registrants found for event ID {event_id}.")
             return
 
-        click.echo( json.dumps( regtypes, indent=2) )
-        #for rt in regtypes:
-        #    click.echo(json.dumps(rt, indent=3))
-        #    click.echo(f"{rt['Id']}: {rt['Name']}")
-
+        if as_json:
+            click.echo(json.dumps(registrants, indent=2))
+        else:
+            for reg in registrants:
+                name = reg.get("DisplayName", "Unknown")
+                click.echo(f"Name: {name}")
+    
     except Exception as e:
+        logger.error(f"Error fetching registrants: {e}")
+        click.echo(f"Error: {e}")
+
+@events.command("registration-types")
+@click.option('--account-id', type=int, required=False, default=None, help='Account ID to fetch registrants for')
+@click.option('--event-id', type=int, required=False, default=None, help='Event ID to fetch registrants for')
+@click.option('--as-json', is_flag=True, default=False, help='Output registrants in JSON format')
+@click.pass_context
+def registration_types(ctx, account_id, event_id, as_json):
+    """List registrant types for a specific event."""
+
+    logger.debug(f"Account ID from CLI: {account_id}")
+    if not account_id:
+        account_id = ctx.obj.get('account_id')
+        logger.debug(f"Account ID from context: {account_id}")
+
+    if not account_id:
+        logger.error("No account ID provided. Use --account-id to specify an account.")
+        return
+
+    logger.debug(f"Event ID from CLI: {event_id}")
+    if not event_id:
+        event_id = ctx.obj.get('event_id')
+        logger.debug(f"Event ID from context: {event_id}")
+
+    if not event_id:
+        logger.error("No event_id provided. Use --event-id to specify an event.")
+        return
+
+    try:
+        registration_types = get_event_registration_types(account_id, event_id)
+        logger.trace( json.dumps(registration_types,indent=2))
+
+        if not registration_types:
+            click.echo(f"No registration_types found for event ID {event_id}.")
+            return
+
+        if as_json:
+            click.echo(json.dumps(registration_types, indent=2))
+        else:
+            for reg in registration_types:
+                name = reg.get("Name","unknown")
+                click.echo(f"{name}")
+                #click.echo( json.dumps( reg,indent=2) )
+    
+    except Exception as e:
+        logger.error(f"Error fetching registrants: {e}")
         click.echo(f"Error: {e}")

@@ -2,6 +2,7 @@ import os
 import time
 import requests
 from dotenv import load_dotenv
+from loguru import logger
 from requests.auth import HTTPBasicAuth
 
 # Load .env variables
@@ -25,7 +26,7 @@ def get_access_token():
         return _access_token
 
     if not CLIENT_ID or not CLIENT_SECRET:
-        raise ValueError("Missing WA_CLIENT_ID or WA_CLIENT_SECRET in .env file")
+        raise ValueError("Missing WILD_APRICOT_CLIENT_ID or WILD_APRICOT_CLIENT_SECRET in .env file")
 
     data = {
         "grant_type": "client_credentials",
@@ -60,61 +61,37 @@ def api_get(endpoint):
     url = API_BASE_URL + endpoint
     headers = get_headers()
     response = requests.get(url, headers=headers)
-
+    logger.debug( url )
     if response.ok:
         return response.json()
     else:
         raise RuntimeError(f"GET {url} failed: {response.status_code} {response.text}")
 
-def get_account_details():
+def get_accounts_details():
     """Public method to retrieve Wild Apricot account info."""
     return api_get("accounts")
 
 
-def get_events() -> dict:
+def get_events_details( account_id:int ) -> dict:
     """Retrieve the list of events from the Wild Apricot API."""
-    from .api import get_access_token  # or adjust import if needed
-
-    # Load account ID from environment
-    load_dotenv()
-    account_id = os.getenv("WILD_APRICOT_ACCOUNT_ID")
     if not account_id:
-        raise RuntimeError("WILD_APRICOT_ACCOUNT_ID is not set in .env")
+        raise ValueError("Account ID is required to fetch events.")
+    return api_get(f"accounts/{account_id}/events")
 
-    # Get token
-    access_token = get_access_token()
+def get_event_registrants(account_id: int, event_id: int) -> dict:
+    """Retrieve the list of registrants for a specific event."""
+    if not account_id or not event_id:
+        raise ValueError("Both account_id and event_id are required to fetch registrants.")
+    return api_get(f"accounts/{account_id}/eventregistrations?eventId={event_id}")
 
-    # Build request
-    url = f"https://api.wildapricot.org/v2.2/accounts/{account_id}/events"
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Accept": "application/json"
-    }
-
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-
-    return response.json()
-
-
-def get_event_registration_types(event_id: int) -> list:
-    """Return a list of registration types (IDs and names) for a given event."""
-    load_dotenv()
-    account_id = os.getenv("WILD_APRICOT_ACCOUNT_ID")
+def get_groups_details( account_id:int ) -> dict:
+    """Retrieve the list of groups from the Wild Apricot API."""
     if not account_id:
-        raise RuntimeError("WILD_APRICOT_ACCOUNT_ID is not set in .env")
+        raise ValueError("Account ID is required to fetch events.")
+    return api_get(f"accounts/{account_id}/contactgroups")
 
-    access_token = get_access_token()
-
-    url = f"https://api.wildapricot.org/v2.2/accounts/{account_id}/events/{event_id}"
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Accept": "application/json"
-    }
-
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-
-    event_details = response.json()
-    return event_details
-    #return event_details.get("RegistrationTypes", [])
+def get_event_registration_types(account_id: int, event_id: int) -> dict:
+    """Retrieve the list of registrants for a specific event."""
+    if not account_id or not event_id:
+        raise ValueError("Both account_id and event_id are required to fetch registrants.")
+    return api_get(f"accounts/{account_id}/eventregistrationtypes?eventId={event_id}")
