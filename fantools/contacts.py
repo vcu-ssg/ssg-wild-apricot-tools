@@ -5,7 +5,8 @@ import click
 from loguru import logger
 
 from fantools.api import get_contacts
-from fantools.utils import list_contacts, list_contact_details
+from fantools.utils import list_contacts, list_contact_details, summarize_contact_fields, summarize_membership_levels, \
+    summarize_member_groups, summarize_levels_by_status, summarize_groups_by_status
 
 
 @click.group('contacts',invoke_without_command=True)
@@ -39,27 +40,14 @@ def contacts(ctx, account_id, contact_id, as_json):
 
     if not ctx.invoked_subcommand:
         contacts = get_contacts( account_id )
-        logger.debug( json.dumps( contacts ) )
+        logger.trace( json.dumps( contacts[:5] ) )
         if contacts:
-            if 0:
-                contacts = {"Contacts":contacts}
 
-                logger.trace( json.dumps( contacts, indent=2) )
-                
-                if member_group_id:
-                    contacts = [contact for contact in contacts.get("Contacts",[]) if str(contact.get("Id")) == str(contact_id)]
-                    if not contacts:
-                        click.echo(f"No contacts with ID: {contact_id}")
-                        return
-                    contacts = {"Contacts": contacts}
-
-                if as_json:
-                    click.echo(json.dumps(contacts, indent=2))
-                else:
-                    if contact_id:
-                        list_contact_details( contact )
-                    else:
-                        list_contacts( contacts )
+            summarize_levels_by_status( contacts )
+            summarize_groups_by_status( contacts )
+            #summarize_membership_levels( contacts )
+            #summarize_member_groups( contacts )
+            
         else:
             click.echo("No contacts found.")
             return

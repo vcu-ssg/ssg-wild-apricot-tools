@@ -5,7 +5,8 @@ import json
 from datetime import datetime
 from loguru import logger
 
-from fantools.api import get_events, get_event_details
+from fantools.api import get_events, get_event_details, get_event_registrants, get_default_membership_level_ids, get_default_membergroup_ids
+
 from fantools.utils import list_events, list_event_details
 
 
@@ -41,6 +42,8 @@ def events(ctx, account_id, event_id, as_json):
     if not ctx.invoked_subcommand:
         events = get_events( account_id )
         if events:
+            click.echo( ctx.get_help() )
+            click.echo("")
             if not event_id:
                 if as_json:
                     click.echo(json.dumps(events, indent=2))
@@ -54,13 +57,12 @@ def events(ctx, account_id, event_id, as_json):
                 event = event[0]
                 access_list = get_event_details( account_id, event.get("Id",None) )
                 access_control = access_list.get("Details",{}).get("AccessControl",{})
-                logger.debug( json.dumps(access_control) )
+                logger.debug( json.dumps(access_list,indent=2) )
                 if access_control:
                     for ag in access_control.get("AvailableForGroups",[]):
-                        click.echo(f"group: {ag['Id']}")
+                        click.echo(f"Available for group: {ag['Id']}")
                     for al in access_control.get("AvailableForLevels",[]):
-                        click.echo(f"level: {al['Id']}")
-
+                        click.echo(f"Available for level: {al['Id']}")
                 if as_json:
                     click.echo(json.dumps(access_list, indent=2))
                 else:
@@ -70,12 +72,12 @@ def events(ctx, account_id, event_id, as_json):
             return
     
 
-@events.command("registrants")
+@events.command()
 @click.option('--account-id', type=int, required=False, default=None, help='Account ID to fetch registrants for')
 @click.option('--event-id', type=int, required=False, default=None, help='Event ID to fetch registrants for')
 @click.option('--as-json', is_flag=True, default=False, help='Output registrants in JSON format')
 @click.pass_context
-def registrants(ctx, account_id, event_id, as_json):
+def list_registrants(ctx, account_id, event_id, as_json):
     """List registrants for a specific event."""
 
     logger.debug(f"Account ID from CLI: {account_id}")
@@ -97,8 +99,21 @@ def registrants(ctx, account_id, event_id, as_json):
         return
 
     try:
-        registrants = get_event_registrants(account_id, event_id)
-        logger.trace( json.dumps(registrants,indent=2))
+        registrants = get_event_registrants( event_id )
+
+        membership_levels = get_default_membership_level_ids( account_id )
+        logger.debug( json.dumps( membership_levels,indent=2))
+
+        membergroups = get_default_membergroup_ids( account_id )
+        logger.debug( json.dumps( membergroups,indent=2))
+
+
+        event_details = get_event_details( account_id, event_id )
+        access_control = event_details.get("Details",{}).get("AccessControl",{})
+        logger.debug( json.dumps(access_control,indent=2) )
+
+        registration_types = event_details.get("Details",{}).get("RegistrationTypes",{})
+        logger.debug( json.dumps(registration_types,indent=2) )
 
         if not registrants:
             click.echo(f"No registrants found for event ID {event_id}.")
@@ -110,9 +125,10 @@ def registrants(ctx, account_id, event_id, as_json):
             for reg in registrants:
                 name = reg.get("DisplayName", "Unknown")
                 click.echo(f"Name: {name}")
+
     
     except Exception as e:
-        logger.error(f"Error fetching registrants: {e}")
+        #logger.error(f"Error fetching registrants: {e}")
         click.echo(f"Error: {e}")
 
 @events.command("registration-types")

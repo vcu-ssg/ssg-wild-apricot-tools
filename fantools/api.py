@@ -4,6 +4,7 @@ import os
 import ssl
 import time
 import json
+import click
 import socket
 import requests
 from pathlib import Path
@@ -27,6 +28,27 @@ _token_expiry = None
 
 
 TLS_TEST_URL = API_BASE_URL+"accounts"  # public endpoint that uses valid cert
+
+# Cache file for contacts
+CACHE_FILE = Path(".cache/contacts.json")
+CACHE_EXPIRY_SECONDS = 3600  # 1 hour
+
+def load_contacts_cache():
+    if CACHE_FILE.exists():
+        age = time.time() - CACHE_FILE.stat().st_mtime
+        if age < CACHE_EXPIRY_SECONDS:
+            with open(CACHE_FILE, "r", encoding="utf-8") as f:
+                logger.debug("Loaded contacts from cache.")
+                return json.load(f)
+        else:
+            logger.debug("Cache expired. Will fetch new contacts.")
+    return None
+
+def save_contacts_cache(contacts: list):
+    CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(CACHE_FILE, "w", encoding="utf-8") as f:
+        json.dump(contacts, f)
+        logger.debug("Contacts saved to cache.")
 
 def check_tls(timeout: int = 5):
     """
@@ -106,14 +128,9 @@ def api_get_following_redirect(endpoint):
     return data
 
 
-
 def get_accounts():
     """Public method to retrieve Wild Apricot account info."""
     return api_get("accounts")
-
-def get_membergroups( account_id: int ) -> dict:
-    """Public method to retrieve Wild Apricot membergroup info."""
-    return api_get(f"accounts/{account_id}/membergroups")
 
 def get_events( account_id:int ) -> dict:
     """Retrieve the list of events from the Wild Apricot API."""
@@ -121,55 +138,109 @@ def get_events( account_id:int ) -> dict:
         raise ValueError("Account ID is required to fetch events.")
     return api_get(f"accounts/{account_id}/events")
 
-
-def get_contacts(account_id: int, exclude_archived: bool = True) -> list:
+def get_default_membership_level_ids(account_id: int) -> list:
     """
-    Retrieve all contacts for the given Wild Apricot account ID,
-    handling pagination and async ResultUrl responses.
-
-    Parameters:
-        account_id (int): Wild Apricot account ID
-        exclude_archived (bool): If True, exclude archived contacts
-
-    Returns:
-        list of dict: All contact records
+    Retrieve all membership levels for a given Wild Apricot account.
     """
-    all_contacts = []
-    top = 100
-    skip = 0
+    endpoint = f"accounts/{account_id}/membershiplevels"
+    response = api_get(endpoint)  # assumes api_get handles auth and base URL
+    levels = response
 
-    while True:
-        # Construct filter query
-        filters = []
-        if exclude_archived:
-            filters.append("IsArchived eq false")
-        filter_part = "&$filter=" + " and ".join(filters) if filters else ""
-        
-        # Build full endpoint
-        endpoint = (
-            f"/accounts/{account_id}/contacts?$top={top}&$skip={skip}{filter_part}"
-        )
+    return [level["Id"] for level in levels]
 
-        # Call API
-        data = api_get(endpoint)
+def get_membergroups( account_id: int ) -> dict:
+    """Public method to retrieve Wild Apricot membergroup info."""
+    response = api_get(f"accounts/{account_id}/membergroups")
+    return response
 
-        # Handle async result
-        if "ResultUrl" in data:
-            result_url = data["ResultUrl"].replace("https://api.wildapricot.org/v2", "")
-            data = api_get(result_url)
+def get_default_membergroup_ids( account_id: int ) -> dict:
+    """Public method to retrieve Wild Apricot membergroup info."""
+    response = api_get(f"accounts/{account_id}/membergroups")
+    return [ group["Id"] for group in response]
 
-        # Process contacts
-        page_contacts = data.get("Contacts", [])
-        all_contacts.extend(page_contacts)
+def normalize_and_flatten_contacts(contacts: list) -> list:
+    """
+    Normalize and flatten contact records.
+    Adds 'MembershipLevelId' and 'MembershipLevelName' fields.
+    """
+    all_keys = set()
+    flattened = []
 
-        # Break if no more pages
-        if len(page_contacts) < top:
-            break
+    for contact in contacts:
+        all_keys.update(contact.keys())
 
-        skip += top
+    for contact in contacts:
+        flat_contact = {key: contact.get(key, None) for key in all_keys}
 
-    return all_contacts
+        membership_level = contact.get("MembershipLevel")
+        if isinstance(membership_level, dict):
+            flat_contact["MembershipLevelId"] = membership_level.get("Id")
+            flat_contact["MembershipLevelName"] = membership_level.get("Name")
+        else:
+            flat_contact["MembershipLevelId"] = None
+            flat_contact["MembershipLevelName"] = None
 
+        flattened.append(flat_contact)
+
+    logger.debug( f"Normalized and flattened {len(flattened)} contacts.", fg="blue")
+    return flattened
+
+def get_contacts(account_id: int, exclude_archived: bool = True, max_wait: int = 10, normalize_contacts: bool = True, use_cache: bool = True) -> list:
+    """
+    Retrieve all contacts from Wild Apricot, optionally using a cache.
+    Handles report-style filtered queries and optional normalization.
+    """
+    if use_cache:
+        cached = load_contacts_cache()
+        if cached:
+            logger.debug("Loaded contacts from local cache.")
+            return normalize_and_flatten_contacts(cached) if normalize_contacts else cached
+
+    query_parts = []
+    if exclude_archived:
+        query_parts.append("$filter=IsArchived eq false")
+        query_parts.append("$select=*")  # Force full results
+
+    endpoint = f"accounts/{account_id}/contacts"
+    if query_parts:
+        endpoint += "?" + "&".join(query_parts)
+
+    response = api_get(endpoint)
+
+    if "ResultUrl" in response:
+        result_url = response["ResultUrl"].replace(API_BASE_URL, "")
+        state = response.get("State")
+        attempts = 0
+
+        while state != "Complete" and attempts < max_wait:
+            logger.debug(f"Waiting for report to complete (attempt {attempts + 1})...")
+            time.sleep(1.5)
+            response = api_get(result_url)
+            state = response.get("State", "Complete")
+            attempts += 1
+
+        for retry in range(2):
+            contacts = response.get("Contacts", [])
+            if contacts:
+                break
+            logger.debug(f"Report returned no contacts on attempt {retry + 1}, retrying...")
+            time.sleep(1.0)
+            response = api_get(result_url)
+        else:
+            contacts = []
+    else:
+        contacts = response.get("Contacts", [])
+
+    if not contacts:
+        logger.warning("No contacts were returned from the API.")
+    else:
+        logger.debug(f"Retrieved {len(contacts)} contacts from API.")
+
+    if use_cache and contacts:
+        save_contacts_cache(contacts)
+        logger.debug("Saved contacts to local cache.")
+
+    return normalize_and_flatten_contacts(contacts) if normalize_contacts else contacts
 
 
 def get_event_details( account_id:int, event_id:int ) -> dict:
@@ -407,4 +478,48 @@ def write_combined_cert_bundle(
     except Exception as e:
         raise RuntimeError(f"Failed to write combined cert bundle: {e}")
     
-    
+
+def normalize_event_registrants(registrants: list) -> list:
+    """
+    Flatten Contact-level membership info into the top-level registrant dictionary.
+    Specifically extracts MembershipLevel and Status.
+    """
+    normalized = []
+
+    for reg in registrants:
+        contact = reg.get("Contact", {})
+
+        # Extract membership level
+        membership = contact.get("MembershipLevel")
+        if isinstance(membership, dict):
+            reg["MembershipLevel"] = {
+                "Id": membership.get("Id"),
+                "Name": membership.get("Name")
+            }
+        else:
+            reg["MembershipLevel"] = None
+
+        # Extract contact status
+        reg["Status"] = contact.get("Status", "Unknown")
+
+        # You can flatten more fields here if needed
+
+        normalized.append(reg)
+
+    return normalized
+
+
+def get_event_registrants(event_id: int) -> list:
+    """
+    Fetch registrants for a given event ID from Wild Apricot.
+    No retries, no caching, no polling — just a direct GET request.
+
+    Parameters:
+    - event_id: Wild Apricot event ID
+
+    Returns:
+    - A list of registrant dictionaries
+    """
+    endpoint = f"eventregistrations?eventId={event_id}"
+    response = api_get(endpoint)  # assumes api_get is defined elsewhere
+    return response
