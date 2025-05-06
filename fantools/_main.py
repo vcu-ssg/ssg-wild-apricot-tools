@@ -1,9 +1,9 @@
 import click
 from loguru import logger
-from fantools import accounts, members, events, contacts, groups, config
+from fantools import accounts, events, membergroups, config, contacts
 
 
-@click.group(invoke_without_command=True)
+@click.group()
 @click.pass_context
 def cli( ctx ):
     """FanTools CLI."""
@@ -22,8 +22,7 @@ def cli( ctx ):
         ctx.obj = {}
 
 cli.add_command(accounts.accounts)
-cli.add_command(members.members)
 cli.add_command(events.events)
+cli.add_command(membergroups.membergroups)
 cli.add_command(contacts.contacts)
-cli.add_command(groups.groups)
 

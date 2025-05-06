@@ -5,8 +5,8 @@ import json
 from datetime import datetime
 from loguru import logger
 
-from fantools.api import get_events_details, get_event_registrants, get_event_registration_types
-from fantools.utils import list_events_details, list_event_details
+from fantools.api import get_events, get_event_details
+from fantools.utils import list_events, list_event_details
 
 
 @click.group(invoke_without_command=True)
@@ -39,21 +39,32 @@ def events(ctx, account_id, event_id, as_json):
         ctx.obj["event_id"] = event_id
 
     if not ctx.invoked_subcommand:
-        events = get_events_details( account_id )
+        events = get_events( account_id )
         if events:
-            if event_id:
-                events = [event for event in events.get("Events", []) if event.get("Id") == event_id]
-                if not events:
+            if not event_id:
+                if as_json:
+                    click.echo(json.dumps(events, indent=2))
+                else:
+                    list_events( events )
+            else:
+                event = [event for event in events.get("Events", []) if str(event.get("Id")) == str(event_id)]
+                if not event:
                     click.echo(f"No event found with ID: {event_id}")
                     return
-                events = {"Events": events}
-            if as_json:
-                click.echo(json.dumps(events, indent=2))
-            else:
-                if event_id:
-                    list_event_details( events )
+                event = event[0]
+                access_list = get_event_details( account_id, event.get("Id",None) )
+                access_control = access_list.get("Details",{}).get("AccessControl",{})
+                logger.debug( json.dumps(access_control) )
+                if access_control:
+                    for ag in access_control.get("AvailableForGroups",[]):
+                        click.echo(f"group: {ag['Id']}")
+                    for al in access_control.get("AvailableForLevels",[]):
+                        click.echo(f"level: {al['Id']}")
+
+                if as_json:
+                    click.echo(json.dumps(access_list, indent=2))
                 else:
-                    list_events_details( events )
+                    list_event_details( event )
         else:
             click.echo("No events found.")
             return

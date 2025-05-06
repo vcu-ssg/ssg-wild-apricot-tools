@@ -9,12 +9,12 @@ from fantools.api import get_membergroups
 from fantools.utils import list_groups, list_group_details
 
 
-@click.group(invoke_without_command=True)
+@click.group('member-groups',invoke_without_command=True)
 @click.option('--account-id', type=int, default=None, help='Use specific account ID')
-@click.option('--group-id', type=int, help='Filter by specific group ID')
+@click.option('--member-group-id', type=int, help='Filter by specific group ID')
 @click.option('--as-json', is_flag=True, default=False, help='List all events info in JSON format')
 @click.pass_context
-def groups(ctx, account_id, group_id, as_json):
+def membergroups(ctx, account_id, member_group_id, as_json):
     """Manage Wild Apricot groups."""
 
     ctx.ensure_object(dict)
@@ -31,12 +31,12 @@ def groups(ctx, account_id, group_id, as_json):
         logger.error("No account ID provided. Use --account-id to specify an account.")
         return
 
-    if not group_id:
-        group_id = ctx.obj.get('group_id')
-        logger.debug(f"Group ID from context: {group_id}")
+    if not member_group_id:
+        group_id = ctx.obj.get('membeg_group_id')
+        logger.debug(f"Group ID from context: {member_group_id}")
     else:
-        ctx.obj["group_id"] = group_id
-        logger.debug(f"Group ID from CLI: {group_id}")
+        ctx.obj["member_group_id"] = member_group_id
+        logger.debug(f"Member group ID from CLI: {member_group_id}")
 
     if not ctx.invoked_subcommand:
         groups = get_membergroups( account_id )
@@ -44,19 +44,19 @@ def groups(ctx, account_id, group_id, as_json):
 
             groups = {"MemberGroups":groups}
 
-            logger.debug( json.dumps( groups, indent=2) )
+            logger.trace( json.dumps( groups, indent=2) )
             
-            if group_id:
-                groups = [group for group in groups.get("MemberGroups",[]) if str(group.get("Id")) == str(group_id)]
+            if member_group_id:
+                groups = [group for group in groups.get("MemberGroups",[]) if str(group.get("Id")) == str(member_group_id)]
                 if not groups:
-                    click.echo(f"No event found with ID: {group_id}")
+                    click.echo(f"No event found with ID: {member_group_id}")
                     return
                 groups = {"MemberGroups": groups}
 
             if as_json:
                 click.echo(json.dumps(groups, indent=2))
             else:
-                if group_id:
+                if member_group_id:
                     list_group_details( groups )
                 else:
                     list_groups( groups )

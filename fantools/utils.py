@@ -8,7 +8,7 @@ import click
 from datetime import datetime
 from loguru import logger
 
-def list_accounts_summaries(accounts):
+def list_accounts(accounts):
     """List account summaries"""
     keys_to_check = ['Id','Name','PrimaryDomainName']  # List of keys to check
     for account in accounts:
@@ -33,7 +33,7 @@ def get_event_display_date(event: dict) -> str:
             return_date = None
     return return_date
 
-def list_events_details( event_list: dict ):
+def list_events( event_list: dict ):
     """List Wild Apricot events by date, name, and ID, or show full event details for a given ID."""
     try:
         if not event_list:
@@ -60,7 +60,7 @@ def list_events_details( event_list: dict ):
         click.echo(f"Error: {e}")
 
 
-def list_event_details( event_list: dict, **kwargs ):
+def list_event_details( event_list: dict ):
     """List Wild Apricot events by date, name, and ID, or show full event details for a given ID."""
     try:
         if not event_list:
@@ -85,7 +85,91 @@ def list_event_details( event_list: dict, **kwargs ):
             #click.echo(f"{date_str} | {eid}: {name}")
             click.echo(json.dumps( e,indent=2))
 
+    except Exception as e:
+        click.echo(f"Error: {e}")
 
 
+def list_groups( group_list: dict ):
+    """List Wild Apricot groups """
+    try:
+        if not group_list:
+            click.echo("No groups found.")
+            return
+        
+        logger.trace(f"Group list: {group_list}")
+
+        groups = group_list.get("MemberGroups", [])
+
+        for g in groups:
+
+            name = g.get("Name", "Unnamed Event")
+            eid = g.get("Id", "Unknown ID")
+
+            click.echo(f"{eid} | {name}")
+            
+    except Exception as e:
+        click.echo(f"Error: {e}")
+
+def list_group_details( group_list: dict, **kwargs ):
+    """List Wild Apricot groups """
+    try:
+        if not group_list:
+            click.echo("No groups found.")
+            return
+        
+        logger.trace(f"Group list: {group_list}")
+
+        groups = group_list.get("MemberGroups", [])
+
+        for g in groups:
+
+            name = g.get("Name", "Unnamed Event")
+            eid = g.get("Id", "Unknown ID")
+
+            click.echo(f"{eid} | {name}")
+            
+    except Exception as e:
+        click.echo(f"Error: {e}")
+
+
+def list_contacts( contact_list: dict ):
+    """List Wild Apricot contacts """
+    try:
+        if not contact_list:
+            click.echo("No groups found.")
+            return
+        
+        logger.trace(f"Contact list: {contact_list}")
+
+        contacts = contact_list.get("Contacts", [])
+
+        for contact in contacts:
+
+            name = contact.get("Name", "Unnamed Event")
+            eid = contact.get("Id", "Unknown ID")
+
+            click.echo(f"{eid} | {name}")
+            
+    except Exception as e:
+        click.echo(f"Error: {e}")
+
+def list_contact_details( contact_list: dict ):
+    """List Wild Apricot contacts """
+    try:
+        if not contact_list:
+            click.echo("No groups found.")
+            return
+        
+        logger.trace(f"Contact list: {contact_list}")
+
+        contacts = contact_list.get("Contacts", [])
+
+        for contact in contacts:
+
+            name = contact.get("Name", "Unnamed Event")
+            eid = contact.get("Id", "Unknown ID")
+
+            click.echo(f"{eid} | {name}")
+            
     except Exception as e:
         click.echo(f"Error: {e}")

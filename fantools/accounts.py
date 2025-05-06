@@ -2,8 +2,8 @@
 """
 import json
 import click
-from fantools.api import get_accounts_details
-from fantools.utils import list_accounts_summaries
+from fantools.api import get_accounts
+from fantools.utils import list_accounts
 from loguru import logger
 
 @click.command()
@@ -17,7 +17,7 @@ def accounts( ctx,account_id,as_json ):
         logger.debug(f"Account id from CLI: {account_id}")
 
     try:
-        accounts = get_accounts_details()
+        accounts = get_accounts()
         logger.trace(f"Accounts: {accounts}")
         if not accounts:
             click.echo("No accounts found.")
@@ -41,5 +41,5 @@ def accounts( ctx,account_id,as_json ):
     if as_json:
         click.echo(json.dumps(accounts, indent=2))
     else:
-        list_accounts_summaries(accounts)
+        list_accounts(accounts)
 
