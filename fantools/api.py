@@ -1,12 +1,16 @@
 """
 """
 import os
+import ssl
 import time
 import json
+import socket
 import requests
-from dotenv import load_dotenv
+from pathlib import Path
 from loguru import logger
 from requests.auth import HTTPBasicAuth
+from dotenv import load_dotenv
+
 
 # Load .env variables
 load_dotenv()
@@ -20,6 +24,27 @@ API_BASE_URL = "https://api.wildapricot.org/v2/"
 # Cache token in memory
 _access_token = None
 _token_expiry = None
+
+
+TLS_TEST_URL = API_BASE_URL+"accounts"  # public endpoint that uses valid cert
+
+def check_tls(timeout: int = 5):
+    """
+    Perform a simple unauthenticated GET request to validate TLS.
+    Does not require OAuth or credentials.
+    """
+    try:
+        response = requests.get(TLS_TEST_URL, timeout=timeout)
+        logger.debug(f"TLS check succeeded (HTTP status: {response.status_code})")
+    except requests.exceptions.SSLError as e:
+        logger.error("TLS certificate verification failed.")
+        raise
+    except requests.exceptions.ConnectionError as e:
+        logger.error("Network error during TLS check.")
+        raise
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Non-TLS API error ignored during check: {e}")
+
 
 def get_access_token():
     """Fetch a new OAuth access token if needed (client_credentials flow)."""
@@ -193,3 +218,112 @@ def get_contacts_by_group_ids_with_membership(account_id:int, group_ids:list ) -
         skip += top
 
     return all_contacts
+
+import platform
+
+def fix_tls_error_instructions():
+    os_name = platform.system()
+    is_wsl = "microsoft" in platform.release().lower() or "wsl" in platform.version().lower()
+
+    if os_name == "Windows" and not is_wsl:
+        return """You're on Windows. To fix the TLS certificate error:
+
+1. Open PowerShell as Administrator.
+2. Run the following command to import the certificate (adjust the path):
+
+   Import-Certificate -FilePath "C:\\path\\to\\certificate.crt" -CertStoreLocation Cert:\\LocalMachine\\Root
+
+3. Restart your terminal or computer.
+
+Make sure you're importing the **correct** CA certificate used by Wild Apricot.
+"""
+
+    elif is_wsl or (os_name == "Linux"):
+        return """You're using WSL or native Linux. To fix the TLS certificate error:
+
+1. Copy the certificate (e.g., `wildapricot-ca.crt`) into your trusted store:
+
+   sudo cp wildapricot-ca.crt /usr/local/share/ca-certificates/
+   sudo update-ca-certificates
+
+2. Restart your WSL session or Linux shell.
+
+Make sure you're using the correct certificate and that `ca-certificates` is installed.
+"""
+
+    elif os_name == "Darwin":
+        return """You're on macOS. To fix the TLS certificate error:
+
+1. Open the Keychain Access application.
+2. Drag and drop the certificate into the **System** keychain.
+3. Double-click the certificate and set "When using this certificate" to **Always Trust**.
+4. Close and save changes, then restart your terminal.
+
+Make sure you're importing the **correct** CA certificate from Wild Apricot.
+"""
+
+    else:
+        return "Unsupported OS. Please manually install and trust the CA certificate for your system."
+
+
+def extract_tls_cert_to_file(hostname="oauth.wildapricot.org", port=443, output_path="wildapricot-ca.crt"):
+    """
+    Fetch the TLS certificate from the given host:port, skipping verification,
+    and save it to a .crt PEM file. Useful behind MITM proxies like Zscaler.
+    """
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE  
+
+    with socket.create_connection((hostname, port)) as sock:
+        with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+            der_cert = ssock.getpeercert(binary_form=True)
+            pem_cert = ssl.DER_cert_to_PEM_cert(der_cert)
+
+    path = Path(output_path)
+    path.write_text(pem_cert)
+    return str(path.resolve())
+
+import subprocess
+from pathlib import Path
+
+def extract_zscaler_root_cert(host="oauth.wildapricot.org", port=443, output_file="zscaler-root-ca.crt"):
+    """
+    Uses openssl to fetch the full certificate chain, extracts the last certificate (assumed root),
+    and writes it to a PEM file.
+    """
+    try:
+        # Run openssl s_client to fetch cert chain
+        result = subprocess.run(
+            ["openssl", "s_client", "-showcerts", "-connect", f"{host}:{port}"],
+            input="\n", capture_output=True, text=True, timeout=10
+
+        )
+        output = result.stdout
+
+        # Extract all certs
+        certs = []
+        current_cert = []
+        for line in output.splitlines():
+            if "BEGIN CERTIFICATE" in line:
+                current_cert = [line]
+            elif "END CERTIFICATE" in line:
+                current_cert.append(line)
+                certs.append("\n".join(current_cert))
+                current_cert = []
+            elif current_cert:
+                current_cert.append(line)
+
+        if not certs:
+            raise RuntimeError("No certificates found in output.")
+
+        root_cert = certs[-1]  # Assume last in chain is root
+        Path(output_file).write_text(root_cert)
+        print(f"✅ Root certificate written to: {output_file}")
+        return output_file
+
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("openssl command timed out")
+    except Exception as e:
+        raise RuntimeError(f"Failed to extract root certificate: {e}")
+
