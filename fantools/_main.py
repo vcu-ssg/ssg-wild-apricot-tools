@@ -1,11 +1,12 @@
 import click
-from loguru import logger
-from fantools import accounts, events, membergroups, config, contacts, api
 import requests
+from loguru import logger
+from pathlib import Path
+from fantools import accounts, events, membergroups, config, contacts, api
 
 
 @click.group(invoke_without_command=True)
-@click.option('--write-certs', is_flag=True, default=False, help='Write WA and Zscaler root certs on failure.')
+@click.option('--write-certs', is_flag=True, default=False, help='Update cacerts.pem file with new intermediate zscaler cert.')
 @click.pass_context
 def cli(ctx,write_certs):
     """FanTools CLI."""
@@ -17,23 +18,21 @@ def cli(ctx,write_certs):
         click.secho(str(e), fg="yellow", err=True)
         click.echo("\n" + api.fix_tls_error_instructions())
 
-        # Try to extract and save the TLS certificate
         if write_certs:
             try:
-                cert_path = api.extract_tls_cert_to_file()
-                click.secho(f"\nIntercepting certificate saved to: {cert_path}", fg="green")
-                click.secho("You can now add this certificate to your trusted store.", fg="green")
-            except Exception as cert_err:
-                click.secho("Failed to extract and save the TLS certificate automatically.", fg="red")
-                click.secho(str(cert_err), fg="yellow")
+                combined_path = api.write_combined_cert_bundle()
+                backup_path = Path(combined_path).with_suffix(".pem.backup")
 
-            try:
-                cert_path = api.extract_zscaler_root_cert()  # replaces extract_tls_cert_to_file()
-                click.secho(f"\nZscaler root certificate extracted and saved to: {cert_path}", fg="green")
-                click.secho("You can now add this certificate to your trusted store.", fg="green")
+                click.secho(f"\n✅ Combined CA bundle written to: {combined_path}", fg="green")
+                click.secho(f"🗄️  Original file backed up to: {backup_path}", fg="cyan")
+                click.secho("✅ You are now ready to make secure requests with Zscaler intercept certs.\n", fg="green")
+
+                click.secho("If you experience further issues, confirm that the REQUESTS_CA_BUNDLE", fg="yellow")
+                click.secho("environment variable is either unset or pointing to the updated cacert.pem file.", fg="yellow")
+
             except Exception as cert_err:
-                click.secho("Failed to extract and save the Zscaler root certificate automatically.", fg="red", err=True)
-                click.secho(str(cert_err), fg="yellow", err=True)
+                click.secho("❌ Failed to create and apply the combined CA bundle.", fg="red")
+                click.secho(str(cert_err), fg="yellow")
 
         raise click.Abort()
 

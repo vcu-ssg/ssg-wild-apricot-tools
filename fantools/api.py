@@ -34,7 +34,7 @@ def check_tls(timeout: int = 5):
     Does not require OAuth or credentials.
     """
     try:
-        response = requests.get(TLS_TEST_URL, timeout=timeout)
+        response = requests.get(TLS_TEST_URL, timeout=timeout )
         logger.debug(f"TLS check succeeded (HTTP status: {response.status_code})")
     except requests.exceptions.SSLError as e:
         logger.error("TLS certificate verification failed.")
@@ -241,12 +241,14 @@ Make sure you're importing the **correct** CA certificate used by Wild Apricot.
     elif is_wsl or (os_name == "Linux"):
         return """You're using WSL or native Linux. To fix the TLS certificate error:
 
-1. Copy the certificate (e.g., `wildapricot-ca.crt`) into your trusted store:
+1. Rerun program with --write-certs option.
+
+2. Copy the certificate (e.g., `wildapricot-ca.crt`) into your trusted store:
 
    sudo cp wildapricot-ca.crt /usr/local/share/ca-certificates/
    sudo update-ca-certificates
 
-2. Restart your WSL session or Linux shell.
+3. Restart your WSL session or Linux shell.
 
 Make sure you're using the correct certificate and that `ca-certificates` is installed.
 """
@@ -317,7 +319,7 @@ def extract_zscaler_root_cert(host="oauth.wildapricot.org", port=443, output_fil
         if not certs:
             raise RuntimeError("No certificates found in output.")
 
-        root_cert = certs[-1]  # Assume last in chain is root
+        root_cert = certs[-2]  # Assume last in chain is root
         Path(output_file).write_text(root_cert)
         print(f"✅ Root certificate written to: {output_file}")
         return output_file
@@ -327,3 +329,82 @@ def extract_zscaler_root_cert(host="oauth.wildapricot.org", port=443, output_fil
     except Exception as e:
         raise RuntimeError(f"Failed to extract root certificate: {e}")
 
+import subprocess
+from pathlib import Path
+import certifi
+import shutil
+
+import subprocess
+from pathlib import Path
+import os
+import shutil
+import certifi
+
+
+import subprocess
+from pathlib import Path
+import os
+import shutil
+import certifi
+
+
+def write_combined_cert_bundle(
+    host="oauth.wildapricot.org",
+    port=443,
+    local_crt_file="zscaler-intermediate.crt"
+) -> str:
+    """
+    Appends the Zscaler intermediate cert to the CA bundle (from REQUESTS_CA_BUNDLE or certifi),
+    backs up the original bundle, and saves the intermediate cert locally as well.
+    """
+    try:
+        # Fetch the cert chain from the remote host
+        result = subprocess.run(
+            ["openssl", "s_client", "-showcerts", "-connect", f"{host}:{port}"],
+            input="\n",
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        output = result.stdout
+
+        # Extract certs from the openssl output
+        certs = []
+        current_cert = []
+        for line in output.splitlines():
+            if "BEGIN CERTIFICATE" in line:
+                current_cert = [line]
+            elif "END CERTIFICATE" in line:
+                current_cert.append(line)
+                certs.append("\n".join(current_cert))
+                current_cert = []
+            elif current_cert:
+                current_cert.append(line)
+
+        if len(certs) < 2:
+            raise RuntimeError("Fewer than 2 certificates found in the chain.")
+
+        zscaler_cert = certs[-2]
+
+        # Save the Zscaler cert as its own file
+        local_crt_path = Path(local_crt_file)
+        local_crt_path.write_text(zscaler_cert)
+
+        # Determine which bundle to modify
+        bundle_path = Path(os.getenv("REQUESTS_CA_BUNDLE", certifi.where())).resolve()
+        backup_path = bundle_path.with_suffix(".pem.backup")
+
+        # Backup and append cert
+        shutil.copy(bundle_path, backup_path)
+        with open(bundle_path, "a") as f:
+            f.write("\n")
+            f.write(zscaler_cert)
+
+        return str(bundle_path)
+
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("OpenSSL command timed out")
+    except Exception as e:
+        raise RuntimeError(f"Failed to write combined cert bundle: {e}")
+    
+    
