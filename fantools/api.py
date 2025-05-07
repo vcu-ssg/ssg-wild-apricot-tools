@@ -187,13 +187,13 @@ def normalize_and_flatten_contacts(contacts: list) -> list:
     logger.debug( f"Normalized and flattened {len(flattened)} contacts.", fg="blue")
     return flattened
 
-def get_contacts(account_id: int, exclude_archived: bool = True, max_wait: int = 10, normalize_contacts: bool = True, use_cache: bool = True) -> list:
+def get_contacts(account_id: int, exclude_archived: bool = True, max_wait: int = 10, normalize_contacts: bool = True, use_cache: bool = True, reload: bool = False) -> list:
     """
     Retrieve all contacts from Wild Apricot, optionally using a cache.
     Handles report-style filtered queries and optional normalization.
     """
     if use_cache:
-        cached = load_contacts_cache()
+        cached = load_contacts_cache( reload )
         if cached:
             logger.debug("Loaded contacts from local cache.")
             return normalize_and_flatten_contacts(cached) if normalize_contacts else cached
@@ -525,3 +525,92 @@ def get_event_registrants(event_id: int) -> list:
     endpoint = f"eventregistrations?eventId={event_id}"
     response = api_get(endpoint)  # assumes api_get is defined elsewhere
     return response
+
+
+def register_contact_to_event(contact_id: int, event_id: int, account_id: int, reg_type_id: int) -> dict:
+    """
+    Auto-register a contact to an event using a specified registration type.
+
+    Parameters:
+    - contact_id: Wild Apricot Contact ID
+    - event_id: Wild Apricot Event ID
+    - account_id: Wild Apricot Account ID
+    - reg_type_id: Registration Type ID for the event
+
+    Returns:
+    - The JSON response from the API (the new registration object)
+    """
+    # Step 1: Validate that the registration type exists for the event (optional but safe)
+    event = api_get(f"accounts/{account_id}/events/{event_id}")
+    valid_ids = {rt["Id"] for rt in event.get("RegistrationTypes", [])}
+    if reg_type_id not in valid_ids:
+        raise ValueError(f"Registration type ID {reg_type_id} not found in event {event_id}.")
+
+    # Step 2: Construct registration payload
+    payload = {
+        "Contact": {"Id": contact_id},
+        "Event": {"Id": event_id},
+        "RegistrationType": {"Id": reg_type_id},
+        "IsOnWaitlist": False,
+        "Status": "Confirmed"
+    }
+
+    # Step 3: POST to /eventregistrations
+    url = "https://api.wildapricot.org/v2/eventregistrations"
+    headers = get_headers()  # Assumes your Bearer token auth setup
+    response = requests.post(url, headers=headers, json=payload)
+
+    if response.status_code >= 400:
+        raise RuntimeError(f"Registration failed: {response.status_code} {response.text}")
+
+    return response.json()
+
+
+def register_contacts_to_event(
+    contact_ids: list,
+    event_id: int,
+    account_id: int,
+    reg_type_id: int,
+    delay: float = 0.5,
+    max_retries: int = 3
+) -> dict:
+    """
+    Register a list of contacts to an event, one by one, with retries and rate limiting.
+
+    Returns:
+    - A dict with 'success' and 'failed' lists of contact IDs.
+    """
+    logger.info(f"Starting registration of {len(contact_ids)} contacts...")
+
+    success_ids = []
+    failed_ids = []
+
+    for i, contact_id in enumerate(contact_ids, start=1):
+        success = False
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                register_contact_to_event(
+                    contact_id=contact_id,
+                    event_id=event_id,
+                    account_id=account_id,
+                    reg_type_id=reg_type_id
+                )
+                logger.debug(f"[{i}] Registered contact {contact_id} (attempt {attempt})")
+                success = True
+                break
+            except Exception as e:
+                logger.warning(f"[{i}] Attempt {attempt} failed for contact {contact_id}: {e}")
+                time.sleep(delay)
+
+        if success:
+            success_ids.append(contact_id)
+        else:
+            failed_ids.append(contact_id)
+            logger.error(f"[{i}] Gave up on contact {contact_id} after {max_retries} attempts.")
+
+        time.sleep(delay)
+
+    logger.info(f"Registration complete: {len(success_ids)} succeeded, {len(failed_ids)} failed.")
+    return {"success": success_ids, "failed": failed_ids}
+

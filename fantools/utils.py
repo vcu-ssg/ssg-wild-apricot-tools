@@ -63,33 +63,58 @@ def list_events( event_list: dict ):
         click.echo(f"Error: {e}")
 
 
-def list_event_details( event_list: dict ):
+def list_event_details( event : dict, report_type: str = "summary" ):
     """List Wild Apricot events by date, name, and ID, or show full event details for a given ID."""
+
     try:
-        if not event_list:
-            click.echo("No events found.")
+        if not event:
+            click.echo("No event details provided.")
             return
         
-        logger.trace(f"Event list: {event_list}")
+        logger.trace(f"Event: {json.dumps(event,indent=2)}")
+        logger.trace(f"Keys: {event.keys()}")
 
-        events = event_list.get("Events", [])
+        summary_items = ["Id","Name","Location","EventType","StartDate","EndDate","StartTimeSpecified","EndTimeSpecified",
+                         'PendingRegistrationsCount', 'ConfirmedRegistrationsCount','WaitListRegistrationCount', 'CheckedInAttendeesNumber',
+                         ]
+        display_items = ['RegistrationsLimit',
+                         'InviteeStat', 'Tags',
+                         'AccessLevel',
+                         'HasEnabledRegistrationTypes']
 
-        for e in events:
+        for item in summary_items:
+            if item in event.keys():
+                click.echo(f"{item:>33} : {event[item]}")
+            else:
+                click.echo(f"No '{item}' key found in event")
 
-            name = e.get("Name", "Unnamed Event")
-            eid = e.get("Id", "Unknown ID")
-            date_str = get_event_display_date(e)
+        if report_type in ["details"]:
+            for item in display_items:
+                if item in event.keys():
+                    click.echo(f"{item:>33} : {event[item]}")
+                else:
+                    click.echo(f"No '{item}' key found in event")
 
-            if not date_str:
-                continue  # Skip if no date available
+        if report_type in ["details","full"]:
 
-            event_year = datetime.fromisoformat(date_str).year
+            for item in event.get("Details",{}).keys():
+                value = event.get("Details",{}).get(item)
+                if item in ["EventRegistrationFields","DescriptionHtml"]:
+                    value = "(Too long to display)"
+                elif item in ["RegistrationTypes"]:
+                    value = ".".join([f"'{x.get('Name','Unknown')}'" for x in value])
+                elif item in ["TimeZone"]:
+                    value = value.get("Name","Unknown")
+                elif item in ["Organizer"]:
+                    if value:
+                        if isinstance(value, dict):
+                            value = value.get("Id","Unknown")
+                click.echo(f"{item:>33} : {value}")
 
-            #click.echo(f"{date_str} | {eid}: {name}")
-            click.echo(json.dumps( e,indent=2))
-
+      
     except Exception as e:
         click.echo(f"Error: {e}")
+        raise
 
 
 def list_groups( group_list: dict ):
