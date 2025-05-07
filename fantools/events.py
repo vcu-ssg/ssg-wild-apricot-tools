@@ -80,8 +80,9 @@ def events(ctx, account_id, event_id, as_json):
 @click.option('--account-id', type=int, required=False, default=None, help='Account ID to fetch registrants for')
 @click.option('--event-id', type=int, required=False, default=None, help='Event ID to fetch registrants for')
 @click.option('--as-json', is_flag=True, default=False, help='Output registrants in JSON format')
+@click.option('--confirm', is_flag=True, default=False, help='Confirm action before proceeding')
 @click.pass_context
-def sync_registrants(ctx, account_id, event_id, as_json):
+def sync_registrants(ctx, account_id, event_id, as_json, confirm):
     """List registrants for a specific event."""
 
     logger.debug(f"Account ID from CLI: {account_id}")
@@ -177,8 +178,8 @@ def sync_registrants(ctx, account_id, event_id, as_json):
         temp_ids = list(set(members_ids_by_level + member_ids_by_group))
         potential_registrant_ids = [cid for cid in temp_ids if cid not in current_registrant_ids]
         
-        logger.debug(f"Count of current registrants: {current_registrant_ids}")
-        logger.debug(f"Count of potential registrants: {potential_registrant_ids}")
+        logger.debug(f"Count of current registrants: {len(current_registrant_ids)}")
+        logger.debug(f"Count of potential registrants: {len(potential_registrant_ids)}")
 
         # Given list potential_registrant_ids, create sublists by membership status (e.g., Active, etc.)
         status_groups = defaultdict(list)
@@ -191,29 +192,46 @@ def sync_registrants(ctx, account_id, event_id, as_json):
         for key in status_groups.keys():
             logger.debug(f"Status: {key}, Count: {len(status_groups[key])}")           
 
+        # Derive list of potential ticket types
 
-        if 0:
-            result = register_contacts_to_event(
-                contact_ids=potential_registrant_ids,
-                event_id=event_id,
-                account_id=account_id,
-                reg_type_id=444
-            )
+        registration_types = event.get("Details",{}).get("RegistrationTypes",{})
+        if not registration_types:
+            click.echo(f"No registration types found for event ID {event_id}.")
+            return
+        logger.trace(f"Registration types: {json.dumps(registration_types,indent=2)}")
 
-            print("Successful registrations:", result["success"])
-            print("Failed registrations:", result["failed"])
+        registration_type_ids = [item["Id"] for item in registration_types]
+        logger.debug( f"Registration type ids: { registration_type_ids }" )
+        if len(registration_type_ids) > 1:
+            click.echo(f"Multiple registration types found for event ID {event_id}.")
+            return
 
+        #logger.debug(f"Contact: {json.dumps([contact for contact in contacts if contact['DisplayName'] in ["Leonard, John"]], indent=2)}")
+
+        if confirm:
+            if status_groups:
+                for key in status_groups.keys():
+                    if len(status_groups[key]) > 0:
+
+
+                        result = register_contacts_to_event(
+                            contact_ids=status_groups[key],
+                            event_id=event_id,
+                            account_id=account_id,
+                            reg_type_id=registration_type_ids[0]
+                        )
+
+                        click.echo(f"[{key}] registrations: {len(result["success"])} successful.")
+                        click.echo(f"[{key}] registrations: {len(result["failed"])} failed.")
+                    else:
+                        logger.debug(f"Key {key} has no records to process.")
+            else:
+                click.echo("No records to process.")                
         return
         event_details = get_event_details( account_id, event_id )
         access_control = event_details.get("Details",{}).get("AccessControl",{})
         logger.debug( json.dumps(access_control,indent=2) )
 
-        registration_types = event_details.get("Details",{}).get("RegistrationTypes",{})
-        logger.debug( json.dumps(registration_types,indent=2) )
-
-        if not registrants:
-            click.echo(f"No registrants found for event ID {event_id}.")
-            return
 
         if as_json:
             click.echo(json.dumps(registrants, indent=2))

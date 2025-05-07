@@ -541,19 +541,21 @@ def register_contact_to_event(contact_id: int, event_id: int, account_id: int, r
     - The JSON response from the API (the new registration object)
     """
     # Step 1: Validate that the registration type exists for the event (optional but safe)
-    event = api_get(f"accounts/{account_id}/events/{event_id}")
-    valid_ids = {rt["Id"] for rt in event.get("RegistrationTypes", [])}
-    if reg_type_id not in valid_ids:
-        raise ValueError(f"Registration type ID {reg_type_id} not found in event {event_id}.")
+    
+    #event = api_get(f"accounts/{account_id}/events/{event_id}")
+    #valid_ids = {rt["Id"] for rt in event.get("RegistrationTypes", [])}
+    #if reg_type_id not in valid_ids:
+    #    raise ValueError(f"Registration type ID {reg_type_id} not found in event {event_id}.")
 
     # Step 2: Construct registration payload
     payload = {
         "Contact": {"Id": contact_id},
         "Event": {"Id": event_id},
-        "RegistrationType": {"Id": reg_type_id},
-        "IsOnWaitlist": False,
+        "RegistrationTypeId": reg_type_id,
+        "IsCheckedIn": False,
         "Status": "Confirmed"
     }
+    logger.trace(f"Payload for registration: {json.dumps(payload, indent=2)}")
 
     # Step 3: POST to /eventregistrations
     url = "https://api.wildapricot.org/v2/eventregistrations"
