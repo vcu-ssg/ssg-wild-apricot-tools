@@ -33,10 +33,12 @@ TLS_TEST_URL = API_BASE_URL+"accounts"  # public endpoint that uses valid cert
 CACHE_FILE = Path(".cache/contacts.json")
 CACHE_EXPIRY_SECONDS = 3600  # 1 hour
 
-def load_contacts_cache():
+def load_contacts_cache( reload: bool = False):
     if CACHE_FILE.exists():
         age = time.time() - CACHE_FILE.stat().st_mtime
-        if age < CACHE_EXPIRY_SECONDS:
+        if reload:
+            logger.debug("Forcing cache reload")
+        elif (age < CACHE_EXPIRY_SECONDS):
             with open(CACHE_FILE, "r", encoding="utf-8") as f:
                 logger.debug("Loaded contacts from cache.")
                 return json.load(f)

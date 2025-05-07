@@ -13,8 +13,9 @@ from fantools.utils import list_contacts, list_contact_details, summarize_contac
 @click.option('--account-id', type=int, default=None, help='Use specific account ID')
 @click.option('--contact-id', type=int, help='Filter by specific contact ID')
 @click.option('--as-json', is_flag=True, default=False, help='List all events info in JSON format')
+@click.option('--reload', is_flag=True, default=False, help='Reload contact cache')
 @click.pass_context
-def contacts(ctx, account_id, contact_id, as_json):
+def contacts(ctx, account_id, contact_id, as_json, reload):
     """Manage Wild Apricot contacts"""
 
     ctx.ensure_object(dict)
@@ -39,7 +40,7 @@ def contacts(ctx, account_id, contact_id, as_json):
         logger.debug(f"Contact ID from CLI: {contact_id}")
 
     if not ctx.invoked_subcommand:
-        contacts = get_contacts( account_id )
+        contacts = get_contacts( account_id, reload=reload )
         logger.trace( json.dumps( contacts[:5] ) )
         if contacts:
 
