@@ -6,7 +6,7 @@ from loguru import logger
 
 from fantools.api import get_contacts
 from fantools.utils import list_contacts, list_contact_details, summarize_contact_fields, summarize_membership_levels, \
-    summarize_member_groups, summarize_levels_by_status, summarize_groups_by_status
+    summarize_member_groups, summarize_levels_by_status, summarize_groups_by_status, member_legend
 
 
 @click.group('contacts',invoke_without_command=True)
@@ -48,6 +48,7 @@ def contacts(ctx, account_id, contact_id, as_json, reload):
             summarize_groups_by_status( contacts )
             #summarize_membership_levels( contacts )
             #summarize_member_groups( contacts )
+            member_legend()
             
         else:
             click.echo("No contacts found.")

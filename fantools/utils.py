@@ -461,13 +461,6 @@ def summarize_levels_by_status(contacts: list):
     ))
     click.secho(footer, fg="green")
 
-    click.echo("")
-    click.echo("Active     : Members whose status is Active and membership is current.")
-    click.echo("P.Renew    : Members whose renewal is overdue but still within the grace period (PendingRenewal).")
-    click.echo("P.New      : Members who have applied and are awaiting approval (PendingNew).")
-    click.echo("Lapsed     : Members whose membership has expired and are outside the grace period.")
-    click.echo("Unknown    : Contacts with no recognized status or missing status field.")
-
 
 def summarize_groups_by_status(contacts: list):
     """
@@ -566,7 +559,9 @@ def summarize_groups_by_status(contacts: list):
     ))
     click.secho(footer, fg="green")
 
+def member_legend():
     # Explanation
+
     click.echo("")
     click.echo("Active     : Members whose status is Active and membership is current.")
     click.echo("P.Renew    : Members whose renewal is overdue but still within the grace period (PendingRenewal).")
