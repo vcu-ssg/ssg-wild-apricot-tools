@@ -2,15 +2,15 @@
 """
 import json
 import click
-from fantools.api import get_accounts
-from fantools.utils import list_accounts
+from watools.api import get_accounts
+from watools.utils import list_accounts
 from loguru import logger
 
 @click.command()
 @click.pass_context
 @click.option('--account-id', default=None,type=int, help="Account ID to filter by")
 @click.option('--as-json', is_flag=True, default=False, help="List all accounts info in JSON format")
-def accounts( ctx,account_id,as_json ):
+def cmd( ctx,account_id,as_json ):
     """Display Wild Apricot account details in pretty JSON format."""
 
     if account_id:

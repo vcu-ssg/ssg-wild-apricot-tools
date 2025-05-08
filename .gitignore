@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# project security files
+config/credentials.toml
+
+
 # C extensions
 *.so
 

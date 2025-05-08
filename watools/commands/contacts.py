@@ -4,8 +4,8 @@ import json
 import click
 from loguru import logger
 
-from fantools.api import get_contacts
-from fantools.utils import list_contacts, list_contact_details, summarize_contact_fields, summarize_membership_levels, \
+from watools.api import get_contacts
+from watools.utils import list_contacts, list_contact_details, summarize_contact_fields, summarize_membership_levels, \
     summarize_member_groups, summarize_levels_by_status, summarize_groups_by_status, member_legend
 
 
@@ -15,7 +15,7 @@ from fantools.utils import list_contacts, list_contact_details, summarize_contac
 @click.option('--as-json', is_flag=True, default=False, help='List all events info in JSON format')
 @click.option('--reload', is_flag=True, default=False, help='Reload contact cache')
 @click.pass_context
-def contacts(ctx, account_id, contact_id, as_json, reload):
+def cmd(ctx, account_id, contact_id, as_json, reload):
     """Manage Wild Apricot contacts"""
 
     ctx.ensure_object(dict)

@@ -2,14 +2,14 @@ import click
 import requests
 from loguru import logger
 from pathlib import Path
-from fantools import accounts, events, membergroups, config, contacts, api
+from watools import _accounts, _events, _membergroups, config, _contacts, api
 
 
 @click.group(invoke_without_command=True)
 @click.option('--write-certs', is_flag=True, default=False, help='Update cacerts.pem file with new intermediate zscaler cert.')
 @click.pass_context
 def cli(ctx,write_certs):
-    """FanTools CLI."""
+    """ Wild Apricot (watools) CLI."""
 
     try:
         api.check_tls()
@@ -55,8 +55,8 @@ def cli(ctx,write_certs):
         ctx.exit()
 
 
-cli.add_command(accounts.accounts)
-cli.add_command(events.events)
-cli.add_command(membergroups.membergroups)
-cli.add_command(contacts.contacts)
+cli.add_command(_accounts.accounts)
+cli.add_command(_events.events)
+cli.add_command(_membergroups.membergroups)
+cli.add_command(_contacts.contacts)
 

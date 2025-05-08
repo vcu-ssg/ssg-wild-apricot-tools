@@ -1,0 +1,21 @@
+# configuration file for watools
+
+default_account_id="201263"
+
+
+log_level="INFO"
+
+[api]
+
+
+[cache]
+
+
+
+[accounts.201263]
+# you'll need a corresponding block with credentials in credentials.toml
+local_account_name="Local account name"
+
+[accounts.494137]
+# you'll need a corresponding block with credentials in credentials.toml
+local_account_name="Local account name"

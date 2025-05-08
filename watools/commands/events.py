@@ -7,19 +7,19 @@ from loguru import logger
 
 from collections import defaultdict
 
-from fantools.api import get_events, get_event_details, get_event_registrants, \
+from watools.api import get_events, get_event_details, get_event_registrants, \
     get_default_membership_level_ids, get_default_membergroup_ids, \
     get_contacts, register_contacts_to_event
 
-from fantools.utils import list_events, list_event_details
+from watools.utils import list_events, list_event_details
 
 
-@click.group(invoke_without_command=True)
+@click.group("events",invoke_without_command=True)
 @click.option('--account-id', type=int, default=None, help='Use specific account ID')
 @click.option('--event-id', type=int, help='Filter by specific event ID')
 @click.option('--as-json', is_flag=True, default=False, help='List all events info in JSON format')
 @click.pass_context
-def events(ctx, account_id, event_id, as_json):
+def cmd(ctx, account_id, event_id, as_json):
     """Manage Wild Apricot events."""
 
     ctx.ensure_object(dict)
@@ -76,7 +76,7 @@ def events(ctx, account_id, event_id, as_json):
             return
     
 
-@events.command()
+@cmd.command()
 @click.option('--account-id', type=int, required=False, default=None, help='Account ID to fetch registrants for')
 @click.option('--event-id', type=int, required=False, default=None, help='Event ID to fetch registrants for')
 @click.option('--as-json', is_flag=True, default=False, help='Output registrants in JSON format')

@@ -20,7 +20,7 @@ load_dotenv()
 CLIENT_ID = os.getenv("WILD_APRICOT_CLIENT_ID")
 CLIENT_SECRET = os.getenv("WILD_APRICOT_CLIENT_SECRET")
 OAUTH_URL = "https://oauth.wildapricot.org/auth/token"
-API_BASE_URL = "https://api.wildapricot.org/v2/"
+API_BASE_URL = "https://api.wildapricot.org/v2.2/"
 
 # Cache token in memory
 _access_token = None

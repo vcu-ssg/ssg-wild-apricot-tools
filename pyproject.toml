@@ -1,5 +1,5 @@
 [project]
-name = "ssg-fandistrict-tools"
+name = "ssg-wild-apricot-tools"
 version = "0.1.0"
 description = ""
 authors = [
@@ -12,11 +12,12 @@ dependencies = [
     "python-dotenv (>=1.1.0,<2.0.0)",
     "requests (>=2.32.3,<3.0.0)",
     "toml (>=0.10.2,<0.11.0)",
-    "loguru (>=0.7.3,<0.8.0)"
+    "loguru (>=0.7.3,<0.8.0)",
+    "tomlkit (>=0.13.2,<0.14.0)"
 ]
 
 [tool.poetry]
-packages = [{ include = "fantools" }]
+packages = [{ include = "watools" }]
 
 
 [build-system]
@@ -25,6 +26,6 @@ build-backend = "poetry.core.masonry.api"
 
 
 [tool.poetry.scripts]
-fantools = "fantools._main:cli"
-ft = "fantools._main:cli"
+watools = "watools.cli:cli"
+wat = "watools.cli:cli"
 

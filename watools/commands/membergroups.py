@@ -5,8 +5,8 @@ import json
 from datetime import datetime
 from loguru import logger
 
-from fantools.api import get_membergroups
-from fantools.utils import list_groups, list_group_details
+from watools.api import get_membergroups
+from watools.utils import list_groups, list_group_details
 
 
 @click.group('member-groups',invoke_without_command=True)
@@ -14,7 +14,7 @@ from fantools.utils import list_groups, list_group_details
 @click.option('--member-group-id', type=int, help='Filter by specific group ID')
 @click.option('--as-json', is_flag=True, default=False, help='List all events info in JSON format')
 @click.pass_context
-def membergroups(ctx, account_id, member_group_id, as_json):
+def cmd(ctx, account_id, member_group_id, as_json):
     """Manage Wild Apricot groups."""
 
     ctx.ensure_object(dict)
