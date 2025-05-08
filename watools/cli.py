@@ -1,4 +1,5 @@
 import sys
+import json
 import importlib
 from pathlib import Path
 
@@ -67,15 +68,21 @@ def cli(ctx, log_level):
         logger.exception("[FATAL] Unhandled exception")
         ctx.exit(1)
 
-    if config._config:
-        keys_to_check = ['account_id', 'log_level']
+    if config.is_loaded:
+        keys_to_check = ['default_account_id', 'log_level']
         ctx.obj = {}
         for key in keys_to_check:
-            if key in config._config:
-                ctx.obj[key] = config._config[key]
+            if key in config:
+                match key:
+                    case "default_account_id":
+                        ctx.obj["account_id"] = config[key]
+                    case _:
+                        ctx.obj[key] = config[key]
             else:
                 ctx.obj[key] = None
                 logger.debug(f"No '{key}' key found in configuration. Add '{key}=' to the configuration file.")
+
+        logger.debug( json.dumps( config._raw_config ))
 
     # Step 5: Fallback help if no subcommand
     if ctx.invoked_subcommand is None:

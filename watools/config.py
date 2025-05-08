@@ -1,41 +1,30 @@
 import os
-import json
 import argparse
 from pathlib import Path
-
 from tomlkit import parse
-
 from loguru import logger
 
 APP_NAME = "watools"
 
 class WatoolsConfig:
     def __init__(self):
-        self._config = None
-        self._account_id = None
-        self._account_data = None
+        self._raw_config = None
         self._config_dir = None
-        self._log_level = None
+        self._account_id = None
 
     def _get_config_dir(self) -> Path:
         if self._config_dir:
-            return self._config_dir  # Already determined
+            return self._config_dir
 
-        # 1. Environment override
         env_path = os.getenv("WATOOLS_CONFIG_DIR")
         if env_path:
             self._config_dir = Path(env_path).expanduser()
-            return self._config_dir
+        else:
+            local_path = Path(__file__).resolve().parent.parent / "config"
+            self._config_dir = local_path if local_path.exists() else Path(
+                os.getenv("XDG_CONFIG_HOME", Path.home() / ".config")
+            ) / APP_NAME
 
-        # 2. Local ./config folder
-        local_path = Path(__file__).resolve().parent.parent / "config"
-        if local_path.exists():
-            self._config_dir = local_path
-            return self._config_dir
-
-        # 3. Fallback to XDG
-        xdg_base = os.getenv("XDG_CONFIG_HOME", Path.home() / ".config")
-        self._config_dir = Path(xdg_base) / APP_NAME
         return self._config_dir
 
     def _load_toml_file(self, path: Path):
@@ -46,12 +35,8 @@ class WatoolsConfig:
     def _merge_configs(self, config, credentials):
         accounts = config.get("accounts", {})
         cred_accounts = credentials.get("accounts", {})
-
         for acc_id, creds in cred_accounts.items():
-            if acc_id not in accounts:
-                accounts[acc_id] = {}
-            accounts[acc_id].update(creds)
-
+            accounts.setdefault(acc_id, {}).update(creds)
         config["accounts"] = accounts
         return config
 
@@ -62,35 +47,25 @@ class WatoolsConfig:
         return args.account_id
 
     def _validate_log_level(self, value: str) -> str:
-        valid_levels = {"TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+        valid = {"TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
         value = str(value).upper()
-        if value not in valid_levels:
-            raise ValueError(
-                f"Invalid log_level '{value}'. Must be one of: {', '.join(valid_levels)}."
-            )
+        if value not in valid:
+            raise ValueError(f"Invalid log_level '{value}'. Must be one of: {', '.join(valid)}.")
         return value
 
     def _ensure_loaded(self):
-        if self._config is None:
+        if self._raw_config is None:
             raise RuntimeError("WatoolsConfig has not been loaded. Call `config.load()` first.")
 
     def load(self):
-        """Load and merge configuration files, select account."""
-        if self._config is not None:
-            return  # already loaded
+        if self._raw_config is not None:
+            return
 
         config_dir = self._get_config_dir()
-
-        # Load both files
         config = self._load_toml_file(config_dir / "config.toml")
         credentials = self._load_toml_file(config_dir / "credentials.toml")
         merged = self._merge_configs(config, credentials)
 
-        # Validate and store log level
-        log_level = merged.get("log_level", "INFO")
-        self._log_level = self._validate_log_level(log_level)
-
-        # Determine account ID
         account_id = (
             self._peek_account_id() or
             merged.get("default_account_id") or
@@ -98,72 +73,72 @@ class WatoolsConfig:
         )
 
         if not account_id:
-            raise ValueError(
-                f"No account_id provided and no default_account_id set in {config_dir}/config.toml"
-            )
-
+            raise ValueError(f"No account_id provided and no default_account_id set in {config_dir}/config.toml")
         if not isinstance(account_id, str):
-            raise TypeError(
-                f"default_account_id must be a **quoted string**, like \"201263\" — not an unquoted number.\n"
-                f"Please update your config: {config_dir}/config.toml"
-            )
+            raise TypeError(f"default_account_id must be a quoted string like \"201263\"")
 
-        # Validate selected account
-        accounts = merged.get("accounts", {})
-        if account_id not in accounts:
-            raise KeyError(
-                f"Account ID '{account_id}' not found in [accounts] section of {config_dir}/config.toml"
-            )
+        if account_id not in merged.get("accounts", {}):
+            raise KeyError(f"Account ID '{account_id}' not found in [accounts] section of {config_dir}/config.toml")
 
-        self._config = merged
+        self._raw_config = merged
         self._account_id = account_id
-        self._account_data = accounts[account_id]
 
     def validate(self):
-        """Validate required fields for the selected account."""
         self._ensure_loaded()
+        account = self.account
+        required = ["client_id", "client_secret"]
+        optional = ["api_key"]
 
+        logger.trace(f"Account block:\n{account}")
 
-        logger.debug( json.dumps( self._config ))
-
-        required_keys = ["client_id", "client_secret"]
-        optional_keys = []
-
-        missing = [key for key in required_keys if key not in self._account_data]
+        missing = [k for k in required if k not in account]
         if missing:
-            raise ValueError(
-                f"Missing required keys for account '{self._account_id}': {', '.join(missing)}"
-            )
+            raise ValueError(f"Missing required keys for account '{self._account_id}': {', '.join(missing)}")
 
-        for key in optional_keys:
-            if key not in self._account_data:
-                #from loguru import logger
+        for key in optional:
+            if key not in account:
                 logger.warning(f"Optional key '{key}' not set for account {self._account_id}")
+
+    def __getitem__(self, key):
+        self._ensure_loaded()
+        return self._raw_config.get(key)
+
+    def __contains__(self, key):
+        self._ensure_loaded()
+        return key in self._raw_config
+
+    def __iter__(self):
+        self._ensure_loaded()
+        return iter(self._raw_config)
+
+    @property
+    def config(self):
+        self._ensure_loaded()
+        return self._raw_config
 
     @property
     def config_dir(self) -> Path:
         return self._get_config_dir()
 
     @property
-    def account_id(self):
+    def account_id(self) -> str:
         self._ensure_loaded()
         return self._account_id
 
     @property
-    def account(self):
+    def account(self) -> dict:
         self._ensure_loaded()
-        return self._account_data
+        return self._raw_config["accounts"][self._account_id]
 
     @property
-    def all_config(self):
+    def log_level(self) -> str:
         self._ensure_loaded()
-        return self._config
+        return self._validate_log_level(self._raw_config.get("log_level", "INFO"))
 
     @property
-    def log_level(self):
-        self._ensure_loaded()
-        return self._log_level
+    def is_loaded(self):
+        return self._raw_config is not None
 
 
-# Global singleton
+# Global singleton instance
 config = WatoolsConfig()
