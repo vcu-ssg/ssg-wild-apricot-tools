@@ -87,7 +87,7 @@ class WatoolsConfig:
         self._ensure_loaded()
         account = self.account
         required = ["client_id", "client_secret"]
-        optional = ["api_key"]
+        optional = []
 
         logger.trace(f"Account block:\n{account}")
 
@@ -138,7 +138,16 @@ class WatoolsConfig:
     @property
     def is_loaded(self):
         return self._raw_config is not None
+    
+    @property
+    def client_id( self ) ->str:
+        self._ensure_loaded()
+        return self.account.get("client_id")
 
+    @property
+    def client_secret( self ) -> str:
+        self._ensure_loaded()
+        return self.account.get("client_secret")
 
 # Global singleton instance
 config = WatoolsConfig()

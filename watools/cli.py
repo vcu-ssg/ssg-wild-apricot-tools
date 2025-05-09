@@ -45,7 +45,7 @@ class WatoolsCLI(click.MultiCommand):
 def cli(ctx, log_level):
     """watools: CLI for managing Wild Apricot integrations."""
 
-    level = (log_level or "WARNING").upper()
+    level = (log_level or "DEBUG").upper()
     setup_logger(level=level)
 
     try:
@@ -82,7 +82,8 @@ def cli(ctx, log_level):
                 ctx.obj[key] = None
                 logger.debug(f"No '{key}' key found in configuration. Add '{key}=' to the configuration file.")
 
-        logger.debug( json.dumps( config._raw_config ))
+        logger.debug( f"config._raw_config: \n{json.dumps( config._raw_config,indent=2 )}")
+        logger.debug( f"ctx.obj\n{json.dumps(ctx.obj,indent=2)}")
 
     # Step 5: Fallback help if no subcommand
     if ctx.invoked_subcommand is None:

@@ -10,15 +10,13 @@ import requests
 from pathlib import Path
 from loguru import logger
 from requests.auth import HTTPBasicAuth
-from dotenv import load_dotenv
 
+from watools.config import config
 
-# Load .env variables
-load_dotenv()
 
 # Credentials from .env
-CLIENT_ID = os.getenv("WILD_APRICOT_CLIENT_ID")
-CLIENT_SECRET = os.getenv("WILD_APRICOT_CLIENT_SECRET")
+#CLIENT_ID = os.getenv("WILD_APRICOT_CLIENT_ID")
+#CLIENT_SECRET = os.getenv("WILD_APRICOT_CLIENT_SECRET")
 OAUTH_URL = "https://oauth.wildapricot.org/auth/token"
 API_BASE_URL = "https://api.wildapricot.org/v2.2/"
 
@@ -73,6 +71,9 @@ def check_tls(timeout: int = 5):
 def get_access_token():
     """Fetch a new OAuth access token if needed (client_credentials flow)."""
     global _access_token, _token_expiry
+
+    CLIENT_ID = config.client_id
+    CLIENT_SECRET = config.client_secret
 
     if _access_token and _token_expiry and time.time() < _token_expiry:
         return _access_token
