@@ -1,8 +1,6 @@
 # configuration file for watools
 
-default_account_id="201263"
-
-
+account_id="201263"
 log_level="INFO"
 
 [api]

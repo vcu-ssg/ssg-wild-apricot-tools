@@ -68,14 +68,13 @@ class WatoolsConfig:
 
         account_id = (
             self._peek_account_id() or
-            merged.get("default_account_id") or
             merged.get("account_id")
         )
 
         if not account_id:
-            raise ValueError(f"No account_id provided and no default_account_id set in {config_dir}/config.toml")
+            raise ValueError(f"No account_id provided and no account_id set in {config_dir}/config.toml")
         if not isinstance(account_id, str):
-            raise TypeError(f"default_account_id must be a quoted string like \"201263\"")
+            raise TypeError(f"account_id must be a quoted string like \"201263\"")
 
         if account_id not in merged.get("accounts", {}):
             raise KeyError(f"Account ID '{account_id}' not found in [accounts] section of {config_dir}/config.toml")

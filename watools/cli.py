@@ -69,7 +69,7 @@ def cli(ctx, log_level):
         ctx.exit(1)
 
     if config.is_loaded:
-        keys_to_check = ['default_account_id', 'log_level']
+        keys_to_check = ['account_id', 'log_level']
         ctx.obj = {}
         for key in keys_to_check:
             if key in config:
