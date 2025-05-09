@@ -17,27 +17,33 @@ from watools.config import config
 # Credentials from .env
 #CLIENT_ID = os.getenv("WILD_APRICOT_CLIENT_ID")
 #CLIENT_SECRET = os.getenv("WILD_APRICOT_CLIENT_SECRET")
-OAUTH_URL = "https://oauth.wildapricot.org/auth/token"
-API_BASE_URL = "https://api.wildapricot.org/v2.2/"
+
+#API_BASE_URL = "https://api.wildapricot.org/v2.2/"
 
 # Cache token in memory
+
 _access_token = None
-_token_expiry = None
+_token_expiry = "None"
 
 
-TLS_TEST_URL = API_BASE_URL+"accounts"  # public endpoint that uses valid cert
+#TLS_TEST_URL = API_BASE_URL+"accounts"  # public endpoint that uses valid cert
 
 # Cache file for contacts
 CACHE_FILE = Path(".cache/contacts.json")
 CACHE_EXPIRY_SECONDS = 3600  # 1 hour
 
-def load_contacts_cache( reload: bool = False):
-    if CACHE_FILE.exists():
-        age = time.time() - CACHE_FILE.stat().st_mtime
+#CACHE_FILENAME = "contacts.json"
+#CACHE_EXPIRY_SECONDS = 3600  # 1 hour
+
+def load_contacts_cache(reload: bool = False):
+    cache_file = config.contacts_cache_file
+
+    if cache_file.exists():
+        age = time.time() - cache_file.stat().st_mtime
         if reload:
             logger.debug("Forcing cache reload")
-        elif (age < CACHE_EXPIRY_SECONDS):
-            with open(CACHE_FILE, "r", encoding="utf-8") as f:
+        elif age < config.cache_expiry_seconds:
+            with open(cache_file, "r", encoding="utf-8") as f:
                 logger.debug("Loaded contacts from cache.")
                 return json.load(f)
         else:
@@ -45,8 +51,8 @@ def load_contacts_cache( reload: bool = False):
     return None
 
 def save_contacts_cache(contacts: list):
-    CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(CACHE_FILE, "w", encoding="utf-8") as f:
+    cache_file = config.contacts_cache_file 
+    with open(cache_file, "w", encoding="utf-8") as f:
         json.dump(contacts, f)
         logger.debug("Contacts saved to cache.")
 
@@ -56,7 +62,7 @@ def check_tls(timeout: int = 5):
     Does not require OAuth or credentials.
     """
     try:
-        response = requests.get(TLS_TEST_URL, timeout=timeout )
+        response = requests.get(config.api_base_url+"accounts", timeout=timeout )
         logger.debug(f"TLS check succeeded (HTTP status: {response.status_code})")
     except requests.exceptions.SSLError as e:
         logger.error("TLS certificate verification failed.")
@@ -74,6 +80,7 @@ def get_access_token():
 
     CLIENT_ID = config.client_id
     CLIENT_SECRET = config.client_secret
+    OAUTH_URL = config.oauth_url
 
     if _access_token and _token_expiry and time.time() < _token_expiry:
         return _access_token
@@ -85,6 +92,7 @@ def get_access_token():
         "grant_type": "client_credentials",
         "scope": "auto"
     }
+
 
     response = requests.post(
         OAUTH_URL,
@@ -111,7 +119,7 @@ def get_headers():
 
 def api_get(endpoint):
     """Generic GET request."""
-    url = API_BASE_URL + endpoint
+    url = config.api_base_url + endpoint
     headers = get_headers()
     response = requests.get(url, headers=headers)
     logger.debug( url )
@@ -126,7 +134,7 @@ def api_get_following_redirect(endpoint):
 
     # If it's an async response with a ResultUrl
     if "ResultUrl" in data and "State" in data and data["State"] == "Complete":
-        return api_get(data["ResultUrl"].replace("https://api.wildapricot.org/v2/", ""))
+        return api_get(data["ResultUrl"].replace(config.api_base_url, ""))
 
     return data
 
@@ -211,7 +219,7 @@ def get_contacts(account_id: int, exclude_archived: bool = True, max_wait: int =
     response = api_get(endpoint)
 
     if "ResultUrl" in response:
-        result_url = response["ResultUrl"].replace(API_BASE_URL, "")
+        result_url = response["ResultUrl"].replace(config.api_base_url, "")
         state = response.get("State")
         attempts = 0
 

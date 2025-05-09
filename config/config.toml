@@ -4,16 +4,18 @@ account_id="201263"
 log_level="INFO"
 
 [api]
-
+oauth_url = "https://oauth.wildapricot.org/auth/token"
+api_base_url = "https://api.wildapricot.org/v2.2/"
 
 [cache]
-
+contacts_cache_file="contacts.json"
+cache_expiry_seconds = 3600  # 1 hour
 
 
 [accounts.201263]
 # you'll need a corresponding block with credentials in credentials.toml
-local_account_name="Local account name"
+local_account_name="Fan District Association"
 
 [accounts.494073]
 # you'll need a corresponding block with credentials in credentials.toml
-local_account_name="Local account name"
+local_account_name="Test site - expires July 8th or so"

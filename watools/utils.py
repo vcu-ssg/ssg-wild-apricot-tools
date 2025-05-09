@@ -10,6 +10,9 @@ from loguru import logger
 from datetime import datetime
 from collections import defaultdict, Counter
 
+
+import inspect
+
 def list_accounts(accounts):
     """List account summaries"""
     keys_to_check = ['Id','Name','PrimaryDomainName']  # List of keys to check

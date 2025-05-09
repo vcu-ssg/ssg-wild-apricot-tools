@@ -1,4 +1,5 @@
 import os
+import inspect
 import argparse
 from pathlib import Path
 from tomlkit import parse
@@ -11,6 +12,7 @@ class WatoolsConfig:
         self._raw_config = None
         self._config_dir = None
         self._account_id = None
+        self._cache_dir = None
 
     def _get_config_dir(self) -> Path:
         if self._config_dir:
@@ -25,7 +27,26 @@ class WatoolsConfig:
                 os.getenv("XDG_CONFIG_HOME", Path.home() / ".config")
             ) / APP_NAME
 
+        self._config_dir.mkdir(parents=True, exist_ok=True)
         return self._config_dir
+    
+    def get_cache_dir(self) -> Path:
+        """Get the cache directory according to the XDG specification."""
+        if self._cache_dir:
+            return self._cache_dir
+        
+        env_path = os.getenv("WATOOLS_CACHE_DIR")
+        if env_path:
+            self._cache_dir = Path(env_path).expanduser()
+        else:
+            local_path = Path(__file__).resolve().parent.parent / ".cache"
+            self._cache_dir = local_path if local_path.exists() else Path(
+                os.getenv("XDG_CONFIG_HOME", Path.home() / ".cache")
+            ) / APP_NAME
+
+        self._cache_dir.mkdir(parents=True, exist_ok=True)
+        return self._cache_dir
+
 
     def _load_toml_file(self, path: Path):
         if not path.exists():
@@ -98,6 +119,20 @@ class WatoolsConfig:
             if key not in account:
                 logger.warning(f"Optional key '{key}' not set for account {self._account_id}")
 
+    def list_properties(self) -> dict:
+        """Return a dictionary of public property names and their values."""
+        self._ensure_loaded()
+        props = inspect.getmembers(type(self), lambda o: isinstance(o, property))
+        result = {}
+        for name, _ in props:
+            if name.startswith("_"):
+                continue  # Skip internal/private properties
+            try:
+                result[name] = getattr(self, name)
+            except Exception as e:
+                result[name] = f"<error: {e}>"
+        return result
+
     def __getitem__(self, key):
         self._ensure_loaded()
         return self._raw_config.get(key)
@@ -147,6 +182,29 @@ class WatoolsConfig:
     def client_secret( self ) -> str:
         self._ensure_loaded()
         return self.account.get("client_secret")
+
+    @property
+    def oauth_url( self ) -> str:
+        self._ensure_loaded()
+        return self._raw_config.get("api",{}).get("oauth_url")
+
+    @property
+    def api_base_url( self ) -> str:
+        self._ensure_loaded()
+        return self._raw_config.get("api",{}).get("api_base_url")
+    
+    @property
+    def contacts_cache_file( self ) -> str:
+        self._ensure_loaded()
+        filename = self._raw_config.get("cache",{}).get("contacts_cache_file","contacts.json")
+        filename = self.get_cache_dir() / filename
+        logger.debug(f"cache file: {filename}")
+        return filename
+    
+    @property
+    def cache_expiry_seconds( self ) -> str:
+        self._ensure_loaded()
+        return self._raw_config.get("cache",{}).get("cache_expiry_seconds",3600)
 
 # Global singleton instance
 config = WatoolsConfig()
