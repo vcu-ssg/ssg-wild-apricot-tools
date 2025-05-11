@@ -18,8 +18,9 @@ def click_sink(message):
     prefix = ""
     if record["extra"].get("log_source"):
         module = record["module"]
+        function = record["function"]
         line = record["line"]
-        prefix = f"[{module}:{line}] "
+        prefix = f"[{level}|{module}.{function}:{line}] "
 
     click.secho(prefix + record["message"].rstrip(), fg=color)
 

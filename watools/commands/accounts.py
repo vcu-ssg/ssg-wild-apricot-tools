@@ -2,9 +2,11 @@
 """
 import json
 import click
+from loguru import logger
+
 from watools.core.api import get_accounts
 from watools.core.utils import list_accounts
-from loguru import logger
+from watools.cli.config import config
 
 @click.command()
 @click.pass_context
@@ -12,9 +14,6 @@ from loguru import logger
 @click.option('--as-json', is_flag=True, default=False, help="List all accounts info in JSON format")
 def cmd( ctx,account_id,as_json ):
     """Display Wild Apricot account details in pretty JSON format."""
-
-    if account_id:
-        logger.debug(f"Account id from CLI: {account_id}")
 
     try:
         accounts = get_accounts()
@@ -26,18 +25,6 @@ def cmd( ctx,account_id,as_json ):
         click.echo(f"Error: {e}")
         return
 
-    if not account_id:
-        account_id = ctx.obj.get('account_id')
-        logger.debug(f"Account ID from context: {account_id}")
-
-    if account_id:
-        accounts = [account for account in accounts if str(account['Id']) == str(account_id)]
-        logger.trace(f"Filtered accounts: {accounts}")
-
-    if not accounts:
-        click.echo(f"No account found with ID: {account_id}")
-        return
-    
     if as_json:
         click.echo(json.dumps(accounts, indent=2))
     else:

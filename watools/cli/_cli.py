@@ -1,3 +1,8 @@
+
+from dotenv import load_dotenv, find_dotenv
+load_dotenv(find_dotenv())
+
+
 import sys
 import json
 import importlib
@@ -10,6 +15,7 @@ from tomlkit.exceptions import ParseError
 from watools.cli.config import config
 from watools.cli.logger import setup_logger
 from watools.paths import get_project_root
+
 
 COMMAND_FOLDER = get_project_root() / "watools" / "commands"
 

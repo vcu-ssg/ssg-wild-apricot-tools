@@ -18,7 +18,7 @@ def list_accounts(accounts):
     for account in accounts:
         for key in keys_to_check:
             if key in account:
-                click.echo(f"{key}: {account[key]}")
+                click.echo(f"{key}: {account[str(key)]}")
             else:
                 click.echo(f"No '{key}' key found in account")
 

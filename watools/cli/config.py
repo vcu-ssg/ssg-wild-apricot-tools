@@ -187,5 +187,11 @@ class WatoolsConfig:
         self._ensure_loaded()
         return self._raw_config.get("cache", {}).get("cache_expiry_seconds", 3600)
 
+    @property
+    def account_ids(self) -> list[str]:
+        self._ensure_loaded()
+        return list(self._raw_config.get("accounts", {}).keys())
+
+
 # Global singleton instance
 config = WatoolsConfig()
