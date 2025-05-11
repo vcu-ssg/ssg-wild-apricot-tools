@@ -1,7 +1,7 @@
 import click
 import json
 
-from watools.cli.config import config as cli_config  # assumes config singleton is in watools/config.py
+from watools.core.config import config as core_config  # assumes config singleton is in watools/config.py
 from loguru import logger
 
 
@@ -12,13 +12,13 @@ def cmd(as_json):
     Display current configuration properties.
     """
     try:
-        cli_config.load()
+        core_config.load()
     except Exception as e:
         logger.error(f"Failed to load configuration: {e}")
         click.echo(f"Error: {e}")
         return
 
-    props = cli_config.list_properties()
+    props = core_config.list_properties()
 
     if as_json:
         click.echo(json.dumps(props, indent=2, default=str))

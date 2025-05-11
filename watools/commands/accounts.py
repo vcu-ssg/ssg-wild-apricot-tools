@@ -6,7 +6,6 @@ from loguru import logger
 
 from watools.core.api import get_accounts
 from watools.core.utils import list_accounts
-from watools.cli.config import config
 
 @click.command()
 @click.pass_context

@@ -8,8 +8,8 @@ from pathlib import Path
 from requests.auth import HTTPBasicAuth
 from loguru import logger
 
-from watools.cli.config import config
-from watools.paths import get_default_cache_dir
+from watools.core.config import config
+from watools.core.paths import get_default_cache_dir
 
 # In-memory token cache keyed by account_id
 _token_cache = {}
