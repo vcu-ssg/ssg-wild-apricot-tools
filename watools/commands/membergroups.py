@@ -5,8 +5,8 @@ import json
 from datetime import datetime
 from loguru import logger
 
-from watools.api import get_membergroups
-from watools.utils import list_groups, list_group_details
+from watools.core.api import get_membergroups
+from watools.core.utils import list_groups, list_group_details
 
 
 @click.group('member-groups',invoke_without_command=True)

@@ -7,11 +7,11 @@ from loguru import logger
 
 from collections import defaultdict
 
-from watools.api import get_events, get_event_details, get_event_registrants, \
+from watools.core.api import get_events, get_event_details, get_event_registrants, \
     get_default_membership_level_ids, get_default_membergroup_ids, \
     get_contacts, register_contacts_to_event
 
-from watools.utils import list_events, list_event_details
+from watools.core.utils import list_events, list_event_details
 
 
 @click.group("events",invoke_without_command=True)

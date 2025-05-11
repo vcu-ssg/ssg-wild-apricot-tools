@@ -2,8 +2,8 @@
 """
 import json
 import click
-from watools.api import get_accounts
-from watools.utils import list_accounts
+from watools.core.api import get_accounts
+from watools.core.utils import list_accounts
 from loguru import logger
 
 @click.command()

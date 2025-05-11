@@ -5,7 +5,7 @@ from pathlib import Path
 from tomlkit import parse
 from loguru import logger
 
-APP_NAME = "watools"
+from watools import paths  # ⬅️ New import
 
 class WatoolsConfig:
     def __init__(self):
@@ -18,35 +18,17 @@ class WatoolsConfig:
         if self._config_dir:
             return self._config_dir
 
-        env_path = os.getenv("WATOOLS_CONFIG_DIR")
-        if env_path:
-            self._config_dir = Path(env_path).expanduser()
-        else:
-            local_path = Path(__file__).resolve().parent.parent / "config"
-            self._config_dir = local_path if local_path.exists() else Path(
-                os.getenv("XDG_CONFIG_HOME", Path.home() / ".config")
-            ) / APP_NAME
-
+        self._config_dir = paths.get_default_config_dir()
         self._config_dir.mkdir(parents=True, exist_ok=True)
         return self._config_dir
-    
+
     def get_cache_dir(self) -> Path:
-        """Get the cache directory according to the XDG specification."""
         if self._cache_dir:
             return self._cache_dir
-        
-        env_path = os.getenv("WATOOLS_CACHE_DIR")
-        if env_path:
-            self._cache_dir = Path(env_path).expanduser()
-        else:
-            local_path = Path(__file__).resolve().parent.parent / ".cache"
-            self._cache_dir = local_path if local_path.exists() else Path(
-                os.getenv("XDG_CONFIG_HOME", Path.home() / ".cache")
-            ) / APP_NAME
 
+        self._cache_dir = paths.get_default_cache_dir()
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         return self._cache_dir
-
 
     def _load_toml_file(self, path: Path):
         if not path.exists():
@@ -120,13 +102,12 @@ class WatoolsConfig:
                 logger.warning(f"Optional key '{key}' not set for account {self._account_id}")
 
     def list_properties(self) -> dict:
-        """Return a dictionary of public property names and their values."""
         self._ensure_loaded()
         props = inspect.getmembers(type(self), lambda o: isinstance(o, property))
         result = {}
         for name, _ in props:
             if name.startswith("_"):
-                continue  # Skip internal/private properties
+                continue
             try:
                 result[name] = getattr(self, name)
             except Exception as e:
@@ -172,39 +153,39 @@ class WatoolsConfig:
     @property
     def is_loaded(self):
         return self._raw_config is not None
-    
+
     @property
-    def client_id( self ) ->str:
+    def client_id(self) -> str:
         self._ensure_loaded()
         return self.account.get("client_id")
 
     @property
-    def client_secret( self ) -> str:
+    def client_secret(self) -> str:
         self._ensure_loaded()
         return self.account.get("client_secret")
 
     @property
-    def oauth_url( self ) -> str:
+    def oauth_url(self) -> str:
         self._ensure_loaded()
-        return self._raw_config.get("api",{}).get("oauth_url")
+        return self._raw_config.get("api", {}).get("oauth_url")
 
     @property
-    def api_base_url( self ) -> str:
+    def api_base_url(self) -> str:
         self._ensure_loaded()
-        return self._raw_config.get("api",{}).get("api_base_url")
-    
+        return self._raw_config.get("api", {}).get("api_base_url")
+
     @property
-    def contacts_cache_file( self ) -> str:
+    def contacts_cache_file(self) -> Path:
         self._ensure_loaded()
-        filename = self._raw_config.get("cache",{}).get("contacts_cache_file","contacts.json")
+        filename = self._raw_config.get("cache", {}).get("contacts_cache_file", "contacts.json")
         filename = self.get_cache_dir() / filename
         logger.debug(f"cache file: {filename}")
         return filename
-    
+
     @property
-    def cache_expiry_seconds( self ) -> str:
+    def cache_expiry_seconds(self) -> int:
         self._ensure_loaded()
-        return self._raw_config.get("cache",{}).get("cache_expiry_seconds",3600)
+        return self._raw_config.get("cache", {}).get("cache_expiry_seconds", 3600)
 
 # Global singleton instance
 config = WatoolsConfig()

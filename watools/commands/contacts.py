@@ -4,8 +4,8 @@ import json
 import click
 from loguru import logger
 
-from watools.api import get_contacts
-from watools.utils import list_contacts, list_contact_details, summarize_contact_fields, summarize_membership_levels, \
+from watools.core.api import get_contacts
+from watools.core.utils import list_contacts, list_contact_details, summarize_contact_fields, summarize_membership_levels, \
     summarize_member_groups, summarize_levels_by_status, summarize_groups_by_status, member_legend
 
 

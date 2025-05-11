@@ -26,6 +26,6 @@ build-backend = "poetry.core.masonry.api"
 
 
 [tool.poetry.scripts]
-watools = "watools.cli:cli"
-wat = "watools.cli:cli"
+watools = "watools.cli._cli:cli"
+wat = "watools.cli._cli:cli"
 
