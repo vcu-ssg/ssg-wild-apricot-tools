@@ -56,7 +56,7 @@ def cli(ctx, log_level, account_id ):
     def perform_setup():
         config.load()
         if not log_level and config.log_level in [
-            "TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+            "TRACE", "DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"
         ]:
             setup_logger(level=config.log_level)
         config.validate()
