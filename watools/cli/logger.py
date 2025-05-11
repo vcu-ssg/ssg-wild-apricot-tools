@@ -9,6 +9,7 @@ def click_sink(message):
         "TRACE": "bright_black",
         "DEBUG": "blue",
         "INFO": "green",
+        "SUCCESS": "white",
         "WARNING": "yellow",
         "ERROR": "red",
         "CRITICAL": "bright_red",

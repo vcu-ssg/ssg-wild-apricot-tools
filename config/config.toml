@@ -8,7 +8,6 @@ oauth_url = "https://oauth.wildapricot.org/auth/token"
 api_base_url = "https://api.wildapricot.org/v2.2/"
 
 [cache]
-contacts_cache_file="contacts.json"
 cache_expiry_seconds = 3600  # 1 hour
 
 

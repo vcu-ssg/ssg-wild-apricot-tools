@@ -47,17 +47,12 @@ class WatoolsCLI(click.MultiCommand):
 @click.option(
     "--log-level",
     default=None,
-    type=click.Choice(["TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False),
+    type=click.Choice(["TRACE", "DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False),
     help="Override log level (also enables traceback for DEBUG or TRACE)",
 )
-@click.option(
-    "--debug-exceptions",
-    is_flag=True,
-    default=True,
-    help="Disable exception handling to see full tracebacks (for debugging).",
-)
+@click.option('--account-id', default=None,type=int, help="Account ID to filter by")
 @click.pass_context
-def cli(ctx, log_level, debug_exceptions):
+def cli(ctx, log_level, account_id ):
     """watools: CLI for managing Wild Apricot integrations."""
 
     def perform_setup():
@@ -67,6 +62,8 @@ def cli(ctx, log_level, debug_exceptions):
         ]:
             setup_logger(level=config.log_level)
         config.validate()
+
+    debug_exceptions = False
 
     level = (log_level or "DEBUG").upper()
     setup_logger(level=level)
@@ -107,6 +104,10 @@ def cli(ctx, log_level, debug_exceptions):
                 logger.debug(
                     f"No '{key}' key found in configuration. Add '{key}=' to the configuration file."
                 )
+
+        if account_id:
+            ctx.obj["account_id"] = str(account_id)
+            logger.debug(f"Using account_id from CLI: {account_id}")
 
         logger.debug(f"config._raw_config: \n{json.dumps(config._raw_config, indent=2)}")
         logger.debug(f"ctx.obj\n{json.dumps(ctx.obj, indent=2)}")

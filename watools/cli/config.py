@@ -50,7 +50,7 @@ class WatoolsConfig:
         return args.account_id
 
     def _validate_log_level(self, value: str) -> str:
-        valid = {"TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+        valid = {"TRACE", "DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"}
         value = str(value).upper()
         if value not in valid:
             raise ValueError(f"Invalid log_level '{value}'. Must be one of: {', '.join(valid)}.")

@@ -114,7 +114,7 @@ def get_contacts(account_id=None, exclude_archived=True, max_wait=10, normalize_
     if account_id is None:
         account_id = config.account_id
 
-    cache_file = config.contacts_cache_file
+    cache_file = get_default_cache_dir() / f"contacts-{account_id}.json"
     if use_cache and not reload and cache_file.exists():
         age = time.time() - cache_file.stat().st_mtime
         if age < config.cache_expiry_seconds:
