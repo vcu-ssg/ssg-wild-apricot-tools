@@ -3,24 +3,209 @@ Utility functions for managing AWS accounts.
 """
 
 import os
+import ast
 import json
 import click
+import inspect
 
+from typing import Any
 from loguru import logger
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict, Counter
 
-import inspect
+
+import click
+
+def display_kv_table(data: dict, columns: list[str] = None, fill="."):
+    # Filter to specified columns if provided
+    items = (
+        [(k, data.get(k, "")) for k in columns]
+        if columns else
+        list(data.items())
+    )
+
+    if not items:
+        click.echo("No data to display.")
+        return
+
+    max_key_len = max(len(str(k)) for k, _ in items)
+    for k, v in items:
+        padded_key = str(k).ljust(max_key_len, fill)
+        click.echo(f"{padded_key} : {v}")
+
+
+def display_table(data: list[dict], columns: list[str | dict], max_col_width=40, separator="  "):
+    if not data:
+        click.echo("No data to display.")
+        return
+
+    # Normalize columns to (key, label) tuples
+    normalized_columns = []
+    for col in columns:
+        if isinstance(col, dict):
+            key, label = next(iter(col.items()))
+        else:
+            key, label = col, col
+        normalized_columns.append((key, label))
+
+    # Compute column widths
+    col_widths = []
+    for key, label in normalized_columns:
+        max_data_width = max((len(str(row.get(key, ""))) for row in data), default=0)
+        width = min(max(max_data_width, len(label)), max_col_width)
+        col_widths.append(width)
+
+    # Print header
+    header = separator.join(
+        f"{label:<{col_widths[i]}}" for i, (_, label) in enumerate(normalized_columns)
+    )
+    click.echo(header)
+    click.echo("-" * len(header))
+
+    # Print rows
+    for row in data:
+        line = separator.join(
+            f"{str(row.get(key, '')).strip():<{col_widths[i]}}"[:col_widths[i]]
+            for i, (key, _) in enumerate(normalized_columns)
+        )
+        click.echo(line)
+
+
+class UnsafeExpression(Exception):
+    pass
+
+def safe_eval_expr(expr: str, context: dict) -> bool:
+    """
+    Safely evaluate a restricted Python expression using the AST module.
+    Supports comparisons, boolean ops, and parentheses.
+    """
+
+    tree = ast.parse(expr, mode='eval')
+
+    def _eval(node: ast.AST) -> Any:
+        if isinstance(node, ast.Expression):
+            return _eval(node.body)
+
+        elif isinstance(node, ast.BoolOp):
+            values = [_eval(v) for v in node.values]
+            if isinstance(node.op, ast.And):
+                return all(values)
+            elif isinstance(node.op, ast.Or):
+                return any(values)
+            else:
+                raise UnsafeExpression(f"Unsupported boolean operator: {type(node.op).__name__}")
+
+        elif isinstance(node, ast.Compare):
+            left = _eval(node.left)
+            for op, comparator in zip(node.ops, node.comparators):
+                right = _eval(comparator)
+                if isinstance(op, ast.Eq):
+                    if not (left == right): return False
+                elif isinstance(op, ast.NotEq):
+                    if not (left != right): return False
+                elif isinstance(op, ast.Lt):
+                    if not (left < right): return False
+                elif isinstance(op, ast.LtE):
+                    if not (left <= right): return False
+                elif isinstance(op, ast.Gt):
+                    if not (left > right): return False
+                elif isinstance(op, ast.GtE):
+                    if not (left >= right): return False
+                elif isinstance(op, ast.In):
+                    if not (left in right): return False
+                elif isinstance(op, ast.NotIn):
+                    if not (left not in right): return False
+                else:
+                    raise UnsafeExpression(f"Unsupported comparison operator: {type(op).__name__}")
+            return True
+
+        elif isinstance(node, ast.Name):
+            return context.get(node.id, None)
+
+        elif isinstance(node, ast.Constant):  # Python 3.8+
+            return node.value
+
+        elif isinstance(node, ast.Str):  # For Python <3.8 compatibility
+            return node.s
+        elif isinstance(node, ast.Num):  # Python <3.8
+            return node.n
+        elif isinstance(node, ast.NameConstant):  # True/False/None
+            return node.value
+
+        elif isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+            return not _eval(node.operand)
+
+        else:
+            raise UnsafeExpression(f"Unsupported expression type: {type(node).__name__}")
+
+    return bool(_eval(tree))
+
+
+def filter_events(
+    events: list[dict],
+    *,
+    show_all=False,
+    future=False,
+    year=None,
+    month=None,
+    after=None,
+    before=None,
+    query: str = None
+) -> list[dict]:
+    """
+    Filters a list of event dictionaries based on date and optional query string.
+    """
+
+    now = datetime.now(timezone.utc).astimezone()  # Make 'now' timezone-aware
+    default_after = now - timedelta(days=30)
+    
+    has_explicit_time_filter = any([after, before, year, month, future, show_all])
+    use_after = after if after else (None if has_explicit_time_filter else default_after)
+    use_before = before if not show_all else None  # Keep before if set, or disable if showing all
+
+    filtered = []
+
+    for event in events:
+        try:
+            dt = datetime.fromisoformat(event.get("StartDate", ""))
+        except Exception:
+            continue  # Skip events with bad/missing StartDate
+
+        # Time filters
+        if use_after and dt < use_after:
+            continue
+        if use_before and dt > use_before:
+            continue
+        if future and dt < now:
+            continue
+        if year and dt.year != year:
+            continue
+        if month and dt.month != month:
+            continue
+
+        # Safe ad hoc query
+        if query:
+            try:
+                if not safe_eval_expr(query, event):
+                    continue
+            except UnsafeExpression as e:
+                logger.error(f"Query error: {e}", fg="red")
+                return []
+            except Exception as e:
+                logger.error(f"Unexpected query error: {e}", fg="red")
+                return []
+
+        filtered.append(event)
+
+    return filtered
+
+
 
 def list_accounts(accounts):
     """List account summaries"""
-    keys_to_check = ['Id','Name','PrimaryDomainName']  # List of keys to check
-    for account in accounts:
-        for key in keys_to_check:
-            if key in account:
-                click.echo(f"{key}: {account[str(key)]}")
-            else:
-                click.echo(f"No '{key}' key found in account")
+    keys_to_view = ['Id','Name',{'wat_contact_limit_info':'Contacts'},'PrimaryDomainName']  # List of keys to check
+    display_table( accounts, keys_to_view )
+
 
 def get_event_display_date(event: dict) -> str:
     """Return StartDate if StartTimeSpecified, otherwise EndDate if EndTimeSpecified."""
@@ -37,32 +222,18 @@ def get_event_display_date(event: dict) -> str:
             return_date = None
     return return_date
 
-def list_events( event_list: dict ):
+def list_events( events: list|dict,  \
+                columns: list[str|dict] = ["Id",{"wat_start_date":"Date"},{"wat_start_day":"Day"},{"wat_start_time":"Start"},{"wat_confirmed_and_limit":"Conf/Tot"},"Name"], max_col_width=50):
     """List Wild Apricot events by date, name, and ID, or show full event details for a given ID."""
-    try:
-        if not event_list:
-            click.echo("No events found.")
-            return
-        
-        logger.trace(f"Event list: {event_list}")
+    if not events:
+        click.echo("No events found.")
+        return
+ 
+    if isinstance(events, dict):
+        events = events.get("Events", [])
 
-        events = event_list.get("Events", [])
+    display_table( events, columns, max_col_width=max_col_width)
 
-        for e in events:
-            name = e.get("Name", "Unnamed Event")
-            eid = e.get("Id", "Unknown ID")
-            event_type = e.get("EventType", "Unknown Type")
-            date_str = get_event_display_date(e)
-
-            if not date_str:
-                continue  # Skip if no date available
-
-            event_year = datetime.fromisoformat(date_str).year
-
-            click.echo(f"{date_str:16} | {eid:>8} | {event_type:<8} | {name}")
-
-    except Exception as e:
-        click.echo(f"Error: {e}")
 
 
 def list_event_details( event : dict, report_type: str = "summary" ):
@@ -76,7 +247,7 @@ def list_event_details( event : dict, report_type: str = "summary" ):
         logger.trace(f"Event: {json.dumps(event,indent=2)}")
         logger.trace(f"Keys: {event.keys()}")
 
-        summary_items = ["Id","Name","Location","EventType","StartDate","EndDate","StartTimeSpecified","EndTimeSpecified",
+        summary_items = ["Id","Name","Location","EventType","StartDate","wat_start_day","EndDate","StartTimeSpecified","EndTimeSpecified",
                          'PendingRegistrationsCount', 'ConfirmedRegistrationsCount','WaitListRegistrationCount', 'CheckedInAttendeesNumber',
                          ]
         display_items = ['RegistrationsLimit',
@@ -84,34 +255,8 @@ def list_event_details( event : dict, report_type: str = "summary" ):
                          'AccessLevel',
                          'HasEnabledRegistrationTypes']
 
-        for item in summary_items:
-            if item in event.keys():
-                click.echo(f"{item:>33} : {event[item]}")
-            else:
-                click.echo(f"No '{item}' key found in event")
+        display_kv_table( event, summary_items )
 
-        if report_type in ["details"]:
-            for item in display_items:
-                if item in event.keys():
-                    click.echo(f"{item:>33} : {event[item]}")
-                else:
-                    click.echo(f"No '{item}' key found in event")
-
-        if report_type in ["details","full"]:
-
-            for item in event.get("Details",{}).keys():
-                value = event.get("Details",{}).get(item)
-                if item in ["EventRegistrationFields","DescriptionHtml"]:
-                    value = "(Too long to display)"
-                elif item in ["RegistrationTypes"]:
-                    value = ".".join([f"'{x.get('Name','Unknown')}'" for x in value])
-                elif item in ["TimeZone"]:
-                    value = value.get("Name","Unknown")
-                elif item in ["Organizer"]:
-                    if value:
-                        if isinstance(value, dict):
-                            value = value.get("Id","Unknown")
-                click.echo(f"{item:>33} : {value}")
 
       
     except Exception as e:

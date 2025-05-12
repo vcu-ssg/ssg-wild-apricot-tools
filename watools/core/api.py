@@ -4,6 +4,8 @@ import os
 import time
 import json
 import requests
+
+from datetime import datetime
 from pathlib import Path
 from requests.auth import HTTPBasicAuth
 from loguru import logger
@@ -79,7 +81,14 @@ def api_post(endpoint, payload, account_id=None):
 def get_account(account_id=None):
     if account_id is None:
         account_id = config.account_id
-    return api_get(f"accounts/{account_id}", account_id)
+    response = api_get(f"accounts/{account_id}", account_id)
+    contact_limit_info = response.get("ContactLimitInfo")
+    # Centralize adding WATOOLS specific key-value pairs
+    if contact_limit_info:
+        response["wat_contact_limit_info"] = f"{contact_limit_info.get('CurrentContactsCount',0)}/{contact_limit_info.get('BillingPlanContactsLimit',0)}"
+    else:
+        response["wat_contact_limit_info"] = f"(missing)"
+    return response
 
 def get_accounts() -> list:
     account_ids = config.account_ids
@@ -89,10 +98,72 @@ def get_accounts() -> list:
             accounts.append( get_account( account_id )  )
     return accounts
 
+def add_new_event_fields( event ):
+    dt = datetime.fromisoformat(event["StartDate"])
+    # Add formatted keys
+    event["wat_start_day"] = dt.strftime("%a")             # e.g., "Tue"
+    event["wat_start_date"] = dt.strftime("%Y-%b-%d")      # e.g., "2025-Jun-24"
+    if event.get("StartTimeSpecified"):
+        event["wat_start_time"] = dt.strftime("%I:%M%p").lstrip("0").lower()
+    else:
+        event["wat_start_time"] = ""
+
+    dt = datetime.fromisoformat(event["EndDate"])
+    # Add formatted keys
+    event["wat_end_day"] = dt.strftime("%a")             # e.g., "Tue"
+    event["wat_end_date"] = dt.strftime("%Y-%b-%d")      # e.g., "2025-Jun-24"
+    if event.get("EndTimeSpecified"):
+        event["wat_end_time"] = dt.strftime("%I:%M%p").lstrip("0").lower()
+    else:
+        event["wat_end_time"] = ""
+
+    confirmed = event.get("ConfirmedRegistrationsCount","-")
+    limit = str(event.get("RegistrationsLimit","*"))
+    limit = "*" if limit=="None" else limit
+    event["wat_confirmed_and_limit"] = f"{confirmed}/{limit}"
+    return event
+
+
 def get_events(account_id=None):
     if account_id is None:
         account_id = config.account_id
-    return api_get(f"accounts/{account_id}/events", account_id)
+    response = api_get(f"accounts/{account_id}/events", account_id)
+    for event in response.get("Events"):
+
+        add_new_event_fields( event )
+        if 0:
+            dt = datetime.fromisoformat(event["StartDate"])
+            # Add formatted keys
+            event["wat_start_day"] = dt.strftime("%a")             # e.g., "Tue"
+            event["wat_start_date"] = dt.strftime("%Y-%b-%d")      # e.g., "2025-Jun-24"
+            if event.get("StartTimeSpecified"):
+                event["wat_start_time"] = dt.strftime("%I:%M%p").lstrip("0").lower()
+            else:
+                event["wat_start_time"] = ""
+
+            dt = datetime.fromisoformat(event["EndDate"])
+            # Add formatted keys
+            event["wat_end_day"] = dt.strftime("%a")             # e.g., "Tue"
+            event["wat_end_date"] = dt.strftime("%Y-%b-%d")      # e.g., "2025-Jun-24"
+            if event.get("EndTimeSpecified"):
+                event["wat_end_time"] = dt.strftime("%I:%M%p").lstrip("0").lower()
+            else:
+                event["wat_end_time"] = ""
+
+            confirmed = event.get("ConfirmedRegistrationsCount","-")
+            limit = str(event.get("RegistrationsLimit","*"))
+            limit = "*" if limit=="None" else limit
+            event["wat_confirmed_and_limit"] = f"{confirmed}/{limit}"
+        
+    return response
+
+def get_event_details(event_id, account_id=None):
+    if account_id is None:
+        account_id = config.account_id
+    response = api_get(f"accounts/{account_id}/events/{event_id}?$expand=AccessControl", account_id)
+    add_new_event_fields( response )
+    return response
+
 
 def get_default_membership_level_ids(account_id=None):
     if account_id is None:
@@ -170,10 +241,6 @@ def normalize_and_flatten_contacts(contacts):
     logger.debug(f"Normalized {len(flattened)} contacts.")
     return flattened
 
-def get_event_details(event_id, account_id=None):
-    if account_id is None:
-        account_id = config.account_id
-    return api_get(f"accounts/{account_id}/events/{event_id}?$expand=AccessControl", account_id)
 
 def get_event_registrants(event_id, account_id=None):
     if account_id is None:

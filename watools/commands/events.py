@@ -11,64 +11,84 @@ from watools.core.api import get_events, get_event_details, get_event_registrant
     get_default_membership_level_ids, get_default_membergroup_ids, \
     get_contacts, register_contacts_to_event
 
-from watools.core.utils import list_events, list_event_details
+from watools.core.utils import filter_events, list_events, list_event_details
 
 
-@click.group("events",invoke_without_command=True)
+@click.group("events", invoke_without_command=True)
 @click.option('--event-id', type=int, help='Filter by specific event ID')
-@click.option('--as-json', is_flag=True, default=False, help='List all events info in JSON format')
+@click.option('--all', 'show_all', is_flag=True, help='Show all events, bypass default date filter')
+@click.option('--future', is_flag=True, help='Show only future events')
+@click.option('--year', type=int, help='Filter by event start year')
+@click.option('--month', type=int, help='Filter by event start month')
+@click.option('--after', type=click.DateTime(), help='Only events after this date')
+@click.option('--before', type=click.DateTime(), help='Only events before this date')
+@click.option('--query', type=str, help='Ad hoc query expression (e.g., \'ConfirmedRegistrationsCount > 5 and "Diamond" in Name\')')
+@click.option('--as-json', is_flag=True, default=False, help='Output events as JSON')
 @click.pass_context
-def cmd(ctx, event_id, as_json):
+def cmd(ctx, event_id, show_all,future, year, month, after, before, query, as_json):
     """Manage Wild Apricot events."""
 
     ctx.ensure_object(dict)
-    logger.debug(f"Invoked subcommand: {ctx.invoked_subcommand}" )
-
-    account_id = ctx.obj.get('account_id')
+    account_id = ctx.obj.get("account_id")
     if not account_id:
-        logger.error("No account ID provided. Use --account-id or specify in config.toml.")
+        logger.error("No account ID provided. Use --account-id or configure it.")
         return
 
-    logger.debug(f"Event ID from CLI: {event_id}")
-    if not event_id:
-        event_id = ctx.obj.get('event_id')
-        logger.debug(f"Event ID from context: {event_id}")
-    else:
-        ctx.obj["event_id"] = event_id
+    logger.debug(f"Fetching events for account {account_id}")
+    event_data = get_events(account_id)
+    events = event_data.get("Events", [])
 
-    if not ctx.invoked_subcommand:
-        events = get_events( account_id )
-        if events:
-            click.echo("")
-            if not event_id:
-                if as_json:
-                    click.echo(json.dumps(events, indent=2))
-                else:
-                    list_events( events )
-            else:
-                event = [event for event in events.get("Events", []) if str(event.get("Id")) == str(event_id)]
-                if not event:
-                    click.echo(f"No event found with ID: {event_id}")
-                    return
-                
-                event = event[0]
-                logger.debug( event )
-                event = get_event_details( str(event.get("Id",None)),account_id=account_id )
-                if event:
-                    if as_json:
-                        click.echo(json.dumps(event, indent=2))
-                    else:
-                        list_event_details( event )
-                        click.echo("")
-                        click.echo( ctx.get_help() )
-                else:
-                    click.echo(f"Error loading details for event ID: {event_id}")
-        else:
-            click.echo("No events found.")
-            click.echo("")
-            click.echo( ctx.get_help() )
+    # Filter by ID directly
+    if event_id:
+        events = [e for e in events if str(e.get("Id")) == str(event_id)]
+
+        if not events:
+            click.echo(f"No event found with ID: {event_id}")
             return
-    
+
+        # Show single event details
+        event = get_event_details(event_id, account_id=account_id)
+        logger.debug( event )
+        if event:
+            if as_json:
+                click.echo(json.dumps(event, indent=2))
+            else:
+                list_event_details(event)  # Assuming this is defined
+        else:
+            click.echo(f"Failed to load details for event ID {event_id}")
+        return
+
+    # Apply filters
+    events = filter_events(
+        events,
+        show_all=show_all,
+        future=future,
+        year=year,
+        month=month,
+        after=after,
+        before=before,
+        query=query
+    )
+
+    if not events:
+        click.echo("No events found.")
+        return
+
+    if as_json:
+        click.echo(json.dumps(events, indent=2))
+    else:
+        click.echo("")  # spacing
+        list_events(
+            events,
+            columns=[
+                "Id",
+                {"wat_start_day": "Day"},
+                {"wat_start_date": "Date"},
+                {"wat_start_time": "Time"},
+                {"wat_confirmed_and_limit":"Cnf/Max"},
+                {"Name": "Title"},
+            ]
+        )    
 
 @cmd.command()
 @click.option('--account-id', type=int, required=False, default=None, help='Account ID to fetch registrants for')
