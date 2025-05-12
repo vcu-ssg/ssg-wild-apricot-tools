@@ -182,6 +182,12 @@ def get_event_details(event_id, account_id=None):
     add_new_event_fields( response )
     return response
 
+def get_default_membership_levels(account_id=None):
+    if account_id is None:
+        account_id = config.account_id
+    levels = api_get(f"accounts/{account_id}/membershiplevels", account_id)
+    return levels
+
 
 def get_default_membership_level_ids(account_id=None):
     if account_id is None:
@@ -189,7 +195,7 @@ def get_default_membership_level_ids(account_id=None):
     levels = api_get(f"accounts/{account_id}/membershiplevels", account_id)
     return [level["Id"] for level in levels]
 
-def get_membergroups(account_id=None):
+def get_default_membergroups(account_id=None):
     if account_id is None:
         account_id = config.account_id
     return api_get(f"accounts/{account_id}/membergroups", account_id)
@@ -197,7 +203,7 @@ def get_membergroups(account_id=None):
 def get_default_membergroup_ids(account_id=None):
     if account_id is None:
         account_id = config.account_id
-    groups = api_get(f"accounts/{account_id}/membergroups", account_id)
+    groups = get_membergroups( account_id )
     return [group["Id"] for group in groups]
 
 def get_contacts_xxx(account_id=None, exclude_archived=True, max_wait=10, normalize_contacts=True, use_cache=True, reload=False):
@@ -397,7 +403,8 @@ def get_contacts(account_id=None, exclude_archived=True, max_wait=10, normalize_
 
 def get_event_registrants(event_id, account_id=None):
     if account_id is None:
-        account_id = config.account_id
+        logger.error("Missing account_id")
+        return None
     endpoint = f"eventregistrations?eventId={event_id}"
     return api_get(endpoint, account_id)
 

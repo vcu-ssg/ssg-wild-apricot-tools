@@ -7,9 +7,9 @@ def click_sink(message):
     level = record["level"].name
     color = {
         "TRACE": "bright_black",
-        "DEBUG": "blue",
-        "INFO": "green",
-        "SUCCESS": "white",
+        "DEBUG": "cyan",
+        "INFO": "white",
+        "SUCCESS": "green",
         "WARNING": "yellow",
         "ERROR": "red",
         "CRITICAL": "bright_red",
@@ -21,7 +21,7 @@ def click_sink(message):
         module = record["module"]
         function = record["function"]
         line = record["line"]
-        prefix = f"[{level}|{module}.{function}:{line}] "
+        prefix = f"{level} [{module}.{function}:{line}] "
 
     click.secho(prefix + record["message"].rstrip(), fg=color)
 
