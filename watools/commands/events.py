@@ -53,7 +53,7 @@ def cmd(ctx, event_id, show_all,future, year, month, after, before, query, as_js
             if as_json:
                 click.echo(json.dumps(event, indent=2))
             else:
-                list_event_details(event)  # Assuming this is defined
+                list_event_details(event)
         else:
             click.echo(f"Failed to load details for event ID {event_id}")
         return
@@ -82,13 +82,14 @@ def cmd(ctx, event_id, show_all,future, year, month, after, before, query, as_js
             events,
             columns=[
                 "Id",
-                {"wat_start_day": "Day"},
                 {"wat_start_date": "Date"},
+                {"wat_start_day": "Day"},
                 {"wat_start_time": "Time"},
                 {"wat_confirmed_and_limit":"Cnf/Max"},
                 {"Name": "Title"},
             ]
         )    
+
 
 @cmd.command()
 @click.option('--account-id', type=int, required=False, default=None, help='Account ID to fetch registrants for')
