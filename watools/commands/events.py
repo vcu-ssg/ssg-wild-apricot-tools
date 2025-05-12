@@ -15,25 +15,18 @@ from watools.core.utils import list_events, list_event_details
 
 
 @click.group("events",invoke_without_command=True)
-@click.option('--account-id', type=int, default=None, help='Use specific account ID')
 @click.option('--event-id', type=int, help='Filter by specific event ID')
 @click.option('--as-json', is_flag=True, default=False, help='List all events info in JSON format')
 @click.pass_context
-def cmd(ctx, account_id, event_id, as_json):
+def cmd(ctx, event_id, as_json):
     """Manage Wild Apricot events."""
 
     ctx.ensure_object(dict)
     logger.debug(f"Invoked subcommand: {ctx.invoked_subcommand}" )
 
-    logger.debug(f"Account ID from CLI: {account_id}")
+    account_id = ctx.obj.get('account_id')
     if not account_id:
-        account_id = ctx.obj.get('account_id')
-        logger.debug(f"Account ID from context: {account_id}")
-    else:
-        ctx.obj["account_id"] = account_id
-
-    if not account_id:
-        logger.error("No account ID provided. Use --account-id to specify an account.")
+        logger.error("No account ID provided. Use --account-id or specify in config.toml.")
         return
 
     logger.debug(f"Event ID from CLI: {event_id}")

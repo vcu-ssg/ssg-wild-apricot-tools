@@ -9,9 +9,8 @@ from watools.core.utils import list_accounts
 
 @click.command()
 @click.pass_context
-@click.option('--account-id', default=None,type=int, help="Account ID to filter by")
 @click.option('--as-json', is_flag=True, default=False, help="List all accounts info in JSON format")
-def cmd( ctx,account_id,as_json ):
+def cmd( ctx,as_json ):
     """Display Wild Apricot account details in pretty JSON format."""
 
     try:

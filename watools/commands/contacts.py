@@ -10,26 +10,19 @@ from watools.core.utils import list_contacts, list_contact_details, summarize_co
 
 
 @click.group('contacts',invoke_without_command=True)
-@click.option('--account-id', type=int, default=None, help='Use specific account ID')
 @click.option('--contact-id', type=int, help='Filter by specific contact ID')
 @click.option('--as-json', is_flag=True, default=False, help='List all events info in JSON format')
 @click.option('--reload', is_flag=True, default=False, help='Reload contact cache')
 @click.pass_context
-def cmd(ctx, account_id, contact_id, as_json, reload):
+def cmd(ctx, contact_id, as_json, reload):
     """Manage Wild Apricot contacts"""
 
     ctx.ensure_object(dict)
     logger.debug(f"Invoked subcommand: {ctx.invoked_subcommand}" )
 
-    logger.debug(f"Account ID from CLI: {account_id}")
+    account_id = ctx.obj.get('account_id')
     if not account_id:
-        account_id = ctx.obj.get('account_id')
-        logger.debug(f"Account ID from context: {account_id}")
-    else:
-        ctx.obj["account_id"] = account_id
-
-    if not account_id:
-        logger.error("No account ID provided. Use --account-id to specify an account.")
+        logger.error("No account ID provided. Use --account-id or specify in config.toml file.")
         return
 
     if not contact_id:
