@@ -23,13 +23,14 @@ def get_access_token(account_id=None):
         if time.time() < token_info["expiry"]:
             return token_info["access_token"]
 
-    account_config = config.config.get("accounts", {}).get(account_id, {})
+    account_config = config.config.get("accounts", {}).get(account_id,{})
+    logger.debug( account_config )
     client_id = account_config.get("client_id")
     client_secret = account_config.get("client_secret")
     oauth_url = config.oauth_url
 
     if not client_id or not client_secret:
-        raise ValueError(f"Missing client credentials for account_id '{account_id}'.")
+        raise ValueError(f"Missing client credentials for account_id: '{account_id}'.")
 
     data = {"grant_type": "client_credentials", "scope": "auto"}
     response = requests.post(
@@ -50,7 +51,7 @@ def get_access_token(account_id=None):
 
 def get_headers(account_id=None):
     return {
-        "Authorization": f"Bearer {get_access_token(account_id)}",
+        "Authorization": f"Bearer {get_access_token(str(account_id))}",
         "Accept": "application/json",
         "Content-Type": "application/json"
     }

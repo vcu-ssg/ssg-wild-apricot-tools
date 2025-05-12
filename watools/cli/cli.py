@@ -94,7 +94,7 @@ def cli(ctx, log_level, account_id ):
             if key in config:
                 match key:
                     case "default_account_id":
-                        ctx.obj["account_id"] = config[key]
+                        ctx.obj["account_id"] = str(config[key])
                     case _:
                         ctx.obj[key] = config[key]
             else:

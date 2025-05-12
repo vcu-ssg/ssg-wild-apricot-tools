@@ -52,7 +52,8 @@ def cmd(ctx, event_id, as_json):
                     return
                 
                 event = event[0]
-                event = get_event_details( account_id, event.get("Id",None) )
+                logger.debug( event )
+                event = get_event_details( str(event.get("Id",None)),account_id=account_id )
                 if event:
                     if as_json:
                         click.echo(json.dumps(event, indent=2))
