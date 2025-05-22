@@ -203,7 +203,7 @@ def get_default_membergroups(account_id=None):
 def get_default_membergroup_ids(account_id=None):
     if account_id is None:
         account_id = config.account_id
-    groups = get_membergroups( account_id )
+    groups = get_default_membergroups( account_id )
     return [group["Id"] for group in groups]
 
 def get_contacts_xxx(account_id=None, exclude_archived=True, max_wait=10, normalize_contacts=True, use_cache=True, reload=False):

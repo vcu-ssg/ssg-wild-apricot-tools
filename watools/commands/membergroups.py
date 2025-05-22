@@ -5,7 +5,7 @@ import json
 from datetime import datetime
 from loguru import logger
 
-from watools.core.api import get_membergroups
+from watools.core.api import get_default_membergroups
 from watools.core.utils import list_groups, list_group_details
 
 
@@ -32,7 +32,7 @@ def cmd(ctx, member_group_id, as_json):
         logger.debug(f"Member group ID from CLI: {member_group_id}")
 
     if not ctx.invoked_subcommand:
-        groups = get_membergroups( account_id )
+        groups = get_default_membergroups( account_id )
         if groups:
 
             groups = {"MemberGroups":groups}
