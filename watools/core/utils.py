@@ -3,6 +3,7 @@ Utility functions for managing AWS accounts.
 """
 
 import os
+import csv
 import ast
 import json
 import click
@@ -10,11 +11,15 @@ import inspect
 
 from typing import Any
 from loguru import logger
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from collections import defaultdict, Counter
 
 
 import click
+
+
+def default_contacts_csv_filename():
+    return f"contacts-{date.today().isoformat()}.csv"
 
 def display_kv_table(data: dict, columns: list[str] = None, fill="."):
     # Filter to specified columns if provided
@@ -200,6 +205,11 @@ def filter_events(
     return filtered
 
 
+def list_account( account ):
+    """ List single account details """
+    keys_to_view = ['Id','Name','PrimaryDomainName','ContactEmail','wat_contact_limit_info']  # List of keys to check
+    display_kv_table( account, columns=keys_to_view )
+
 
 def list_accounts(accounts):
     """List account summaries"""
@@ -341,7 +351,7 @@ def list_contact_details( contact_list: dict ):
 
         for contact in contacts:
 
-            name = contact.get("Name", "Unnamed Event")
+            name = contact.get("Name", "Unnamed person")
             eid = contact.get("Id", "Unknown ID")
 
             click.echo(f"{eid} | {name}")
@@ -415,6 +425,94 @@ def normalize_contacts(contacts: list) -> list:
 
     click.secho(f"Normalized all contacts to {len(all_keys)} fields.", fg="blue")
     return normalized
+
+
+def write_contacts_to_csvxx( contacts, filename ):
+    """ Write contacts to CSV file """
+
+    click.echo(f"writing CSV to: {filename}, records: {len(contacts)}")
+
+    contacts = normalize_contacts( contacts )
+    click.echo( json.dumps( contacts, indent=2) )
+
+    return
+
+def extract_value(value):
+    if isinstance(value, dict):
+        return value.get("Label") or value.get("Value") or str(value)
+    elif isinstance(value, list):
+        return "; ".join(map(str, value))
+    elif value is None:
+        return ""
+    return value
+
+def looks_like_leading_zero_number(s):
+    return isinstance(s, str) and s.isdigit() and len(s) > 1 and s.startswith("0")
+
+def write_contacts_to_csv(contacts, filename):
+    all_columns = {}
+    flattened_rows = []
+    column_values = {}  # Track all values per column
+
+    for contact in contacts:
+        flat_row = {}
+        top_level_keys = set(contact.keys())
+
+        for key, value in contact.items():
+            if key == "FieldValues":
+                continue
+            col_key = (key, key)
+            val = extract_value(value)
+            flat_row[col_key] = val
+            all_columns[col_key] = True
+            column_values.setdefault(col_key, []).append(val)
+
+        for field in contact.get("FieldValues", []):
+            field_name = field.get("FieldName")
+            system_code = field.get("SystemCode")
+
+            if system_code in top_level_keys:
+                system_code += "_dup"
+                field_name += " (duplicate)"
+
+            col_key = (field_name, system_code)
+            val = extract_value(field.get("Value"))
+            flat_row[col_key] = val
+            all_columns[col_key] = True
+            column_values.setdefault(col_key, []).append(val)
+
+        flattened_rows.append(flat_row)
+
+    # Detect which columns require string handling (e.g., leading zero numbers)
+    columns_force_string = set()
+    for col, values in column_values.items():
+        if any(looks_like_leading_zero_number(str(v)) for v in values):
+            columns_force_string.add(col)
+
+    # Ensure 'Id' appears first
+    sorted_columns = sorted(
+        all_columns.keys(),
+        key=lambda x: (0 if x[0] == "Id" else 1, x[0].lower())
+    )
+
+    # Write CSV
+    with open(filename, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow([col[0] for col in sorted_columns])  # FieldName
+        writer.writerow([col[1] for col in sorted_columns])  # SystemCode
+
+        for row in flattened_rows:
+            output_row = []
+            for col in sorted_columns:
+                val = row.get(col, "")
+                if col in columns_force_string:
+                    val = f"'{val}"  # Prefix with single quote to preserve formatting in Excel
+                output_row.append(val)
+            writer.writerow(output_row)
+
+    print(f"Wrote {len(flattened_rows)} contacts to {filename}")
+    
+
 
 from collections import Counter
 import click
