@@ -3,6 +3,7 @@ Utility functions for managing AWS accounts.
 """
 
 import os
+import re
 import csv
 import ast
 import json
@@ -44,25 +45,41 @@ def display_table(data: list[dict], columns: list[str | dict], max_col_width=40,
         click.echo("No data to display.")
         return
 
-    # Normalize columns to (key, label) tuples
+    # Normalize columns to (key, label, width) tuples
     normalized_columns = []
     for col in columns:
         if isinstance(col, dict):
-            key, label = next(iter(col.items()))
+            key_with_width, label = next(iter(col.items()))
         else:
-            key, label = col, col
-        normalized_columns.append((key, label))
+            key_with_width = col
+            # Strip width from the key to use as default label
+            match = re.match(r"^(.*?)(?::(\d+))?$", key_with_width)
+            label = match.group(1) if match else key_with_width
+
+        # Parse key and optional width
+        match = re.match(r"^(.*?)(?::(\d+))?$", key_with_width)
+        if match:
+            key = match.group(1)
+            fixed_width = int(match.group(2)) if match.group(2) else None
+        else:
+            key = key_with_width
+            fixed_width = None
+
+        normalized_columns.append((key, label, fixed_width))
 
     # Compute column widths
     col_widths = []
-    for key, label in normalized_columns:
-        max_data_width = max((len(str(row.get(key, ""))) for row in data), default=0)
-        width = min(max(max_data_width, len(label)), max_col_width)
+    for key, label, fixed_width in normalized_columns:
+        if fixed_width:
+            width = fixed_width
+        else:
+            max_data_width = max((len(str(row.get(key, ""))) for row in data), default=0)
+            width = min(max(max_data_width, len(label)), max_col_width)
         col_widths.append(width)
 
     # Print header
     header = separator.join(
-        f"{label:<{col_widths[i]}}" for i, (_, label) in enumerate(normalized_columns)
+        f"{label:<{col_widths[i]}}" for i, (_, label, _) in enumerate(normalized_columns)
     )
     click.echo(header)
     click.echo("-" * len(header))
@@ -71,7 +88,7 @@ def display_table(data: list[dict], columns: list[str | dict], max_col_width=40,
     for row in data:
         line = separator.join(
             f"{str(row.get(key, '')).strip():<{col_widths[i]}}"[:col_widths[i]]
-            for i, (key, _) in enumerate(normalized_columns)
+            for i, (key, _, _) in enumerate(normalized_columns)
         )
         click.echo(line)
 
@@ -813,3 +830,32 @@ def member_legend():
     click.echo("P.New      : Members who have applied and are awaiting approval (PendingNew).")
     click.echo("Lapsed     : Members whose membership has expired and are outside the grace period.")
     click.echo("Unknown    : Contacts with no recognized status or missing status field.")
+
+
+def list_contact_fields(field_list: list):
+    """List Wild Apricot contact fields (system and custom)."""
+    try:
+        if not field_list:
+            click.echo("No contact fields found.")
+            return
+
+        logger.trace(f"Contact field list: {field_list}")
+
+        for field in field_list:
+            fid = field.get("Id", "Unknown ID")
+            name = field.get("Name", "Unnamed Field")
+            system_code = field.get("SystemCode", "")
+            field_type = field.get("FieldType", "")
+            is_system = field.get("IsSystem", True)
+
+            kind = "System" if is_system else "Custom"
+            click.echo(f"{fid} | {name} [{system_code}] ({field_type}, {kind})")
+
+    except Exception as e:
+        click.echo(f"Error: {e}")
+
+def list_contact_fields( contact_fields: list):
+    """List account summaries"""
+
+    keys_to_view = ['Id','FieldName:25','SystemCode:20','MemberOnly','AdminOnly','IsBuiltIn','IsSystem','IsEditable']  # List of keys to check
+    display_table( contact_fields, keys_to_view )

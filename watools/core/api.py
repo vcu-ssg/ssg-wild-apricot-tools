@@ -188,7 +188,6 @@ def get_default_membership_levels(account_id=None):
     levels = api_get(f"accounts/{account_id}/membershiplevels", account_id)
     return levels
 
-
 def get_default_membership_level_ids(account_id=None):
     if account_id is None:
         account_id = config.account_id
@@ -408,6 +407,7 @@ def get_event_registrants(event_id, account_id=None):
     endpoint = f"eventregistrations?eventId={event_id}"
     return api_get(endpoint, account_id)
 
+
 def register_contact_to_event(contact_id, event_id, reg_type_id, account_id=None):
     if account_id is None:
         account_id = config.account_id
@@ -421,6 +421,7 @@ def register_contact_to_event(contact_id, event_id, reg_type_id, account_id=None
     }
     logger.trace(f"Payload for registration: {json.dumps(payload, indent=2)}")
     return api_post("eventregistrations", payload, account_id)
+
 
 def register_contacts_to_event(contact_ids, event_id, reg_type_id, delay=0.5, max_retries=3, account_id=None):
     if account_id is None:
@@ -452,3 +453,11 @@ def register_contacts_to_event(contact_ids, event_id, reg_type_id, delay=0.5, ma
 
     logger.info(f"Registration complete: {len(success_ids)} succeeded, {len(failed_ids)} failed.")
     return {"success": success_ids, "failed": failed_ids}
+
+
+def get_contact_fields(account_id=None):
+    if account_id is None:
+        logger.error("Missing account_id")
+        return None
+    endpoint = "contactfields"
+    return api_get(endpoint, account_id)

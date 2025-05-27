@@ -191,7 +191,7 @@ class WatoolsConfig:
     def account_ids(self) -> list[str]:
         self._ensure_loaded()
         return list(self._raw_config.get("accounts", {}).keys())
-
+    
 
 # Global singleton instance
 config = WatoolsConfig()
