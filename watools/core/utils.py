@@ -16,8 +16,6 @@ from datetime import datetime, timedelta, timezone, date
 from collections import defaultdict, Counter
 
 
-import click
-
 
 def default_contacts_csv_filename():
     return f"contacts-{date.today().isoformat()}.csv"
@@ -530,10 +528,6 @@ def write_contacts_to_csv(contacts, filename):
     print(f"Wrote {len(flattened_rows)} contacts to {filename}")
     
 
-
-from collections import Counter
-import click
-
 def summarize_membership_levels(contacts: list):
     """
     Print a summary table of membership levels from an unnormalized contact list.
@@ -574,9 +568,6 @@ def summarize_membership_levels(contacts: list):
     click.echo("-" * 50)
     click.secho(f"{'Total Contacts':<10} {sum(counter.values()):>5}", fg="green")
 
-
-from collections import defaultdict, Counter
-import click
 
 def summarize_member_groups(contacts: list):
     """

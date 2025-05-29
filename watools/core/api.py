@@ -397,6 +397,17 @@ def get_contacts(account_id=None, exclude_archived=True, max_wait=10, normalize_
             json.dump(contacts, f)
             logger.debug("Contacts saved to cache.")
 
+    
+    for contact in contacts:
+        field_values = contact.get("FieldValues", [])
+        is_archived = any(
+            f.get("SystemCode") == "IsArchived" and f.get("Value") is True
+            for f in field_values
+        )
+        if is_archived:
+            contact["MembershipLevel"] = {"Id":"Archived", "Name": "Archived"}
+            contact["Status"] = "Unknown"
+
     return normalize_and_flatten_contacts(contacts) if normalize_contacts else contacts
 
 

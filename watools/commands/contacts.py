@@ -14,6 +14,7 @@ from watools.core.utils import list_contacts, list_contact_details, summarize_co
 @click.option('--contact-id', type=int, help='Filter by specific contact ID')
 @click.option('--as-json', is_flag=True, default=False, help='List all contact info in JSON format')
 @click.option('--reload', is_flag=True, default=False, help='Reload contact cache')
+@click.option('--exclude-archived/--no-exclude-archived',is_flag=True, default=True, help='Exclude archived contacts')
 @click.option(
     "--to-csv",
     required=False,
@@ -25,7 +26,7 @@ from watools.core.utils import list_contacts, list_contact_details, summarize_co
 
 
 @click.pass_context
-def cmd(ctx, contact_id, as_json, reload, to_csv):
+def cmd(ctx, contact_id, as_json, reload, exclude_archived, to_csv):
     """Manage Wild Apricot contacts"""
 
     ctx.ensure_object(dict)
@@ -45,7 +46,7 @@ def cmd(ctx, contact_id, as_json, reload, to_csv):
 
     if not ctx.invoked_subcommand:
 
-        contacts = get_contacts( account_id, reload=reload )
+        contacts = get_contacts( account_id, reload=reload,exclude_archived=exclude_archived )
         logger.trace( json.dumps( contacts[:5] ) )
 
         if contacts:
