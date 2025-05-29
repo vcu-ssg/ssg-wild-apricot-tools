@@ -9,7 +9,9 @@ import ast
 import json
 import click
 import inspect
+import pandas as pd
 
+from faker import Faker
 from typing import Any
 from loguru import logger
 from datetime import datetime, timedelta, timezone, date
@@ -19,6 +21,9 @@ from collections import defaultdict, Counter
 
 def default_contacts_csv_filename():
     return f"contacts-{date.today().isoformat()}.csv"
+
+def default_contacts_xlsx_filename():
+    return f"contacts-{date.today().isoformat()}.xlsx"
 
 def display_kv_table(data: dict, columns: list[str] = None, fill="."):
     # Filter to specified columns if provided
@@ -848,5 +853,142 @@ def list_contact_fields(field_list: list):
 def list_contact_fields( contact_fields: list):
     """List account summaries"""
 
-    keys_to_view = ['Id','FieldName:25','SystemCode:20','MemberOnly','AdminOnly','IsBuiltIn','IsSystem','IsEditable']  # List of keys to check
+    keys_to_view = ['Id','FieldName:20','SystemCode:20','Type:10','MemberOnly','AdminOnly','IsBuiltIn','IsSystem','IsEditable']  # List of keys to check
     display_table( contact_fields, keys_to_view )
+
+
+def next_email_in_sequence(existing_emails, base_prefix="john", domain="@lowkeylabs.com"):
+    """
+    Given a set of existing emails like {'john+0029@lowkeylabs.com', 'john+0030@lowkeylabs.com'},
+    return the next available email, e.g. 'john+0031@lowkeylabs.com'.
+    
+    Assumes emails follow the pattern: <prefix>+<4-digit number><domain>
+    """
+    pattern = re.compile(rf"{re.escape(base_prefix)}\+(\d+){re.escape(domain)}")
+    max_number = -1
+
+    for email in existing_emails:
+        if not isinstance(email, str):
+            continue
+        match = pattern.fullmatch(email)
+        if match:
+            number = int(match.group(1))
+            max_number = max(max_number, number)
+
+    next_number = max_number + 1
+    return f"{base_prefix}+{next_number:04d}{domain}"
+
+
+
+def generate_fake_dataframe(columns, num_rows=5, df=None, unique_columns=None, member_level=None, num_bundles=1):
+    fake = Faker()
+    data = []
+
+    if df is None:
+        raise ValueError("You must provide an existing DataFrame (`df`) to append rows to.")
+    
+    # Ensure all requested columns exist in df
+    missing = [col for col in columns if col not in df.columns]
+    if missing:
+        raise ValueError(f"The following columns are not in the incoming DataFrame: {missing}")
+
+    if unique_columns is None:
+        unique_columns = []
+
+    existing_uniques = {
+        col: set(df[col].dropna().unique()) for col in unique_columns
+    }
+
+    def yes_no():
+        return "yes" if fake.boolean() else "no"
+    
+    def yes():
+        return "yes"
+
+    def no():
+        return "no"
+
+    def membership_level():
+        return "Household"
+    
+    def date_within_last_n_years(n):
+        today = date.today()
+        try:
+            n_years_ago = today.replace(year=today.year - int(n))
+        except ValueError:
+            n_years_ago = today.replace(month=2, day=28, year=today.year - int(n))
+        return fake.date_between(start_date=n_years_ago, end_date=today)
+
+    def date_between_x_and_y_days( x, y):
+        earliest_day = date.today() + timedelta(days=x)
+        latest_day = date.today() + timedelta(days=y)
+        return fake.date_between(start_date=earliest_day, end_date=latest_day)
+
+    generators = {
+        'First name': fake.first_name,
+        'Last name': fake.last_name,
+        'Email': fake.unique.email,
+        'Phone': fake.phone_number,
+        'Address': fake.street_address,
+        'City': fake.city,
+        'State': fake.state,
+        'Zip': fake.zipcode,
+        'Text SMS Number': fake.phone_number,
+        'Privacy Policy': yes_no,
+        'Subscribed to emails': yes,
+        'Event announcements': yes,
+        'Archived' : no,
+        'Member emails and newsletters': yes,
+        'Membership level': membership_level,
+        'Member since': lambda: date_between_x_and_y_days(-1500, -35),
+        'Renewal due': lambda: date_between_x_and_y_days( -30, 90 ),
+    }
+
+    for _ in range( num_bundles ):
+
+        bundle_coordinator_email = ""
+        first_in_bundle = True
+        for _ in range(num_rows):
+            # generate individual
+            row = {}
+            for col in columns:
+                if col in generators:
+                    # ensure uniqueness across existing df + current batch
+                    if col in unique_columns:
+                        max_tries = 1000
+                        for _ in range(max_tries):
+                            if col=="Email":
+                                candidate = next_email_in_sequence( existing_uniques[col] )
+                            else:
+                                candidate = generators[col]()
+                            if candidate not in existing_uniques[col]:
+                                value = candidate
+                                existing_uniques[col].add(candidate)
+                                break
+                        else:
+                            raise ValueError(f"Could not generate unique value for column '{col}' after {max_tries} tries")
+                    else:
+                        value = generators[col]()
+                else:
+                    value = ""
+                row[col] = value
+
+            row["Membership level"] = member_level
+            if member_level in ["Household"]:
+                if first_in_bundle:
+                    bundle_coordinator_email = row["Email"]
+                    first_in_bundle = False
+                    row["Member role"] = "Bundle coordinator"
+                else:
+                    row["Member since"] = ""
+                    row["Renewal due"] = ""
+                    row["Member role"] = "Bundle member"
+                row["Member bundle ID or email"] = bundle_coordinator_email
+            else:
+                row["Member role"] = "Individual" # identifies role within bundle.  Individual, Bundle member, Bundle coordinator
+                row["Member bundle ID or email"] = ""
+
+            data.append(row)
+
+    new_df = pd.DataFrame(data)
+    return pd.concat([df, new_df], ignore_index=True)
