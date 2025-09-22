@@ -1,6 +1,6 @@
 # configuration file for watools
 
-account_id="495510"
+account_id="201263"
 log_level="INFO"
 
 [api]
@@ -15,6 +15,6 @@ cache_expiry_seconds = 3600  # 1 hour
 # you'll need a corresponding block with credentials in credentials.toml
 local_account_name="Fan District Association"
 
-[accounts.495510]
+[accounts.502513]
 # you'll need a corresponding block with credentials in credentials.toml
-local_account_name="FanDoo Test - expires July 26th or so"
+local_account_name="Fan Womans Club"
