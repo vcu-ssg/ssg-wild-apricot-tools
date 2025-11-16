@@ -1,9 +1,14 @@
 
 import click
 import json
+import csv
+from pathlib import Path
 
 from datetime import datetime
 from loguru import logger
+
+import openpyxl
+from openpyxl.utils import get_column_letter
 
 from collections import defaultdict
 
@@ -303,3 +308,202 @@ def auto_register(ctx, event_id, use_status, confirm):
     except Exception as e:
         #logger.error(f"Error fetching registrants: {e}")
         click.echo(f"Error: {e}")
+
+
+@cmd.command("dump-registrations")
+@click.option("--event-id", type=int,
+              help="Event ID to dump registrations for (overrides outer --event-id).")
+@click.option("--outfile", type=click.Path(dir_okay=False),
+              required=True,
+              help="XLSX filename to write (e.g., registrations.xlsx).")
+@click.pass_context
+def dump_registrations(ctx, event_id, outfile):
+    """
+    Dump event registrations to XLSX, including:
+      • Guest count
+      • Invoice totals (RegistrationFee / PaidSum / Balance)
+      • Registration type name + ID
+      • Contact flattening
+      • Event metadata sheet
+      • Styled headers and auto-width with max 50 chars
+    """
+
+    account_id = ctx.obj.get("account_id")
+    if not account_id:
+        logger.error("No account ID provided.")
+        return
+
+    # -------------------------------
+    # Resolve Event ID
+    # -------------------------------
+    event_id = event_id or ctx.obj.get("event_id")
+    if not event_id:
+        logger.error("No event_id provided. Use --event-id.")
+        return
+
+    # -------------------------------
+    # Event metadata
+    # -------------------------------
+    event = get_event_details(event_id, account_id=account_id)
+    if not event:
+        click.echo(f"No event found with ID {event_id}")
+        return
+
+    # -------------------------------
+    # Registrations
+    # -------------------------------
+    regs_raw = get_event_registrants(event_id, account_id=account_id)
+    regs = regs_raw.get("EventRegistrations", regs_raw) if isinstance(regs_raw, dict) else regs_raw
+
+    logger.info(f"Found {len(regs)} registrations")
+
+    # -------------------------------
+    # Contacts lookup
+    # -------------------------------
+    contacts = get_contacts(account_id)
+    contacts_by_id = {c["Id"]: c for c in contacts}
+
+    # -------------------------------
+    # Build rows
+    # -------------------------------
+    rows = []
+    all_keys = set()
+
+    for reg in regs:
+        row = {}
+
+        row["RegistrationId"] = reg.get("Id")
+        row["EventId"] = event_id
+
+        # --- Registration type ---
+        rt = reg.get("RegistrationType", {})
+        row["RegistrationTypeId"] = rt.get("Id") or reg.get("RegistrationTypeId")
+        row["RegistrationTypeName"] = rt.get("Name")
+
+        # --- Registration status ---
+        row["Status"] = reg.get("Status")
+        row["IsCheckedIn"] = reg.get("IsCheckedIn")
+        row["RegistrationDate"] = reg.get("RegistrationDate")
+
+        # --- Correct Guest Count ---
+        guest_info = reg.get("GuestRegistrationsSummary", {})
+        row["GuestCount"] = guest_info.get("NumberOfGuests", 0)
+        row["TicketCount"] = row["GuestCount"] + 1
+
+        # --- Correct Invoice Totals ---
+        fee = reg.get("RegistrationFee") or 0
+        paid = reg.get("PaidSum") or 0
+
+        row["InvoiceTotal"] = fee
+        row["TotalPaid"] = paid
+        row["InvoiceBalance"] = max(fee - paid, 0)
+
+        # --- Contact info ---
+        contact_id = reg.get("Contact", {}).get("Id")
+        row["ContactId"] = contact_id
+
+        # -------------------------------
+        # Registration FieldValues (address, city, state, zip, custom fields)
+        # -------------------------------
+        for field in reg.get("RegistrationFields", []):
+            name = field.get("FieldName")
+            value = field.get("Value")
+
+            # Normalize various WA value formats
+            if isinstance(value, dict):
+                # { "Id": 22444671, "Label": "VA" }
+                val = value.get("Label") or value.get("Value") or str(value)
+            elif isinstance(value, list):
+                # Multi-select fields: [{"Id":..., "Label":"Word of Mouth"}]
+                val = ", ".join(
+                    f.get("Label") or f.get("Value") or str(f)
+                    for f in value
+                )
+            else:
+                val = value
+
+            # Create safe column name
+            safe_name = (
+                "Reg_" +
+                name.strip()
+                    .replace(" ", "_")
+                    .replace("/", "_")
+                    .replace("(", "")
+                    .replace(")", "")
+                    .replace("-", "_")
+            )
+
+            row[safe_name] = val
+            all_keys.add(safe_name)
+
+
+        contact = contacts_by_id.get(contact_id, {})
+        row["DisplayName"] = contact.get("DisplayName")
+        row["Email"] = contact.get("Email")
+        row["MembershipLevel"] = contact.get("MembershipLevelName")
+        row["ContactStatus"] = contact.get("Status")
+
+        # Flatten simple contact fields
+        for k, v in contact.items():
+            if isinstance(v, (str, int, float, bool)) or v is None:
+                row[f"Contact_{k}"] = v
+
+        rows.append(row)
+        all_keys.update(row.keys())
+
+    columns = sorted(all_keys)
+
+    # -------------------------------
+    # Write XLSX
+    # -------------------------------
+    outfile = Path(outfile)
+    outfile.parent.mkdir(parents=True, exist_ok=True)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "registrations"
+
+    header_font = openpyxl.styles.Font(bold=True)
+    header_align = openpyxl.styles.Alignment(horizontal="center")
+
+    # Header row
+    for col_idx, col_name in enumerate(columns, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=col_name)
+        cell.font = header_font
+        cell.alignment = header_align
+
+    # Data rows
+    for r_idx, row in enumerate(rows, start=2):
+        for c_idx, col_name in enumerate(columns, start=1):
+            ws.cell(row=r_idx, column=c_idx, value=row.get(col_name))
+
+    # Auto-width with max 50 chars
+    for idx, col_name in enumerate(columns, start=1):
+        max_len = len(col_name)
+        for r in rows:
+            val = r.get(col_name)
+            if val is not None:
+                max_len = max(max_len, len(str(val)))
+        ws.column_dimensions[get_column_letter(idx)].width = min(max_len + 2, 50)
+
+    # -------------------------------
+    # Metadata Sheet
+    # -------------------------------
+    meta = wb.create_sheet("event_metadata")
+    meta_fields = [
+        ("Event ID", event.get("Id")),
+        ("Title", event.get("Name")),
+        ("StartDate", event.get("StartDate")),
+        ("EndDate", event.get("EndDate")),
+        ("Location", event.get("Location")),
+        ("ConfirmedRegistrations", event.get("ConfirmedRegistrationsCount")),
+        ("RegistrationLimit", event.get("RegistrationsLimit")),
+        ("AccessControl", json.dumps(event.get("Details", {}).get("AccessControl", {}), indent=2)),
+    ]
+
+    for i, (k, v) in enumerate(meta_fields, start=1):
+        meta.cell(row=i, column=1, value=k)
+        meta.cell(row=i, column=2, value=v)
+
+    wb.save(outfile)
+    click.echo(f"✓ XLSX written: {outfile}")
